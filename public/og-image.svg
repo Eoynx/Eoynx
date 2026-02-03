@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad1200" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    
+    <!-- Sun gradient -->
+    <linearGradient id="sunGrad1200" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#ea580c"/>
+      <stop offset="100%" style="stop-color:#fb923c"/>
+    </linearGradient>
+    
+    <!-- Glow gradient -->
+    <radialGradient id="glowGrad1200" cx="50%" cy="70%" r="40%">
+      <stop offset="0%" style="stop-color:#f97316;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#f97316;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad1200)"/>
+  
+  <!-- Glow effect -->
+  <ellipse cx="600" cy="440" rx="400" ry="200" fill="url(#glowGrad1200)"/>
+  
+  <!-- Horizon line -->
+  <rect x="100" y="420" width="1000" height="4" rx="2" fill="#334155"/>
+  
+  <!-- Sun (half circle) -->
+  <path d="M 400 420 A 200 200 0 0 1 800 420" fill="url(#sunGrad1200)"/>
+  
+  <!-- Sun rays -->
+  <g stroke="#f97316" stroke-width="8" stroke-linecap="round">
+    <line x1="600" y1="150" x2="600" y2="80"/>
+    <line x1="480" y1="180" x2="430" y2="120"/>
+    <line x1="720" y1="180" x2="770" y2="120"/>
+    <line x1="360" y1="280" x2="280" y2="250"/>
+    <line x1="840" y1="280" x2="920" y2="250"/>
+    <line x1="300" y1="380" x2="200" y2="370"/>
+    <line x1="900" y1="380" x2="1000" y2="370"/>
+  </g>
+  
+  <!-- Inner sun highlight -->
+  <path d="M 460 420 A 140 140 0 0 1 740 420" fill="none" stroke="#fbbf24" stroke-width="4" opacity="0.4"/>
+  
+  <!-- Reflection lines -->
+  <g stroke="#f97316" stroke-width="3" opacity="0.2">
+    <line x1="250" y1="480" x2="450" y2="480"/>
+    <line x1="500" y1="500" x2="800" y2="500"/>
+    <line x1="700" y1="480" x2="950" y2="480"/>
+  </g>
+  
+  <!-- Text: Eoynx -->
+  <text x="600" y="560" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="bold">
+    <tspan fill="#f97316">Eo</tspan><tspan fill="#f1f5f9">ynx</tspan>
+  </text>
+  
+  <!-- Tagline -->
+  <text x="600" y="600" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#94a3b8">
+    AI Agent-Friendly Web Gateway
+  </text>
+</svg>

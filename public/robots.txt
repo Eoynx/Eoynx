@@ -1,0 +1,178 @@
+# =============================================================================
+# Eoynx (이오닉스) - AI Agent Gateway
+# robots.txt - AI Agent & Search Engine Crawler Configuration
+# =============================================================================
+# Website: https://eoynx.com
+# Documentation: https://eoynx.com/docs
+# LLMs.txt: https://eoynx.com/llms.txt
+# AI.txt: https://eoynx.com/ai.txt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Default Rules - Allow all crawlers
+# -----------------------------------------------------------------------------
+User-agent: *
+Allow: /
+Allow: /api/agent
+Allow: /api/agent/health
+Allow: /api/agent/mcp
+Allow: /llms.txt
+Allow: /ai.txt
+Disallow: /api/admin
+Disallow: /dashboard
+Disallow: /_next/static/
+Crawl-delay: 1
+
+# -----------------------------------------------------------------------------
+# AI Agent Bots - Welcome! (No rate limiting for AI agents)
+# -----------------------------------------------------------------------------
+
+# OpenAI
+User-agent: GPTBot
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Allow: /ai.txt
+Disallow: /dashboard
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+# Anthropic Claude
+User-agent: Claude-Web
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Allow: /ai.txt
+Disallow: /dashboard
+
+User-agent: anthropic-ai
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+# Google AI (Gemini, Bard)
+User-agent: Google-Extended
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+# Microsoft Copilot / Bing
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Cohere
+User-agent: cohere-ai
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+# Meta AI
+User-agent: Meta-ExternalAgent
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Disallow: /dashboard
+
+User-agent: FacebookBot
+Allow: /
+Crawl-delay: 2
+
+# Amazon / Alexa
+User-agent: Amazonbot
+Allow: /
+Allow: /api/agent
+Disallow: /dashboard
+
+# Apple
+User-agent: Applebot
+Allow: /
+Crawl-delay: 1
+
+# Common Crawl (for AI training datasets)
+User-agent: CCBot
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+Crawl-delay: 5
+
+# Hugging Face
+User-agent: HuggingFaceBot
+Allow: /
+Allow: /api/agent
+Allow: /llms.txt
+
+# -----------------------------------------------------------------------------
+# Search Engine Bots
+# -----------------------------------------------------------------------------
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Googlebot-Image
+Allow: /
+Crawl-delay: 2
+
+User-agent: Yandex
+Allow: /
+Crawl-delay: 2
+
+User-agent: DuckDuckBot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 2
+
+# -----------------------------------------------------------------------------
+# Bad Bots - Block aggressive scrapers
+# -----------------------------------------------------------------------------
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+# -----------------------------------------------------------------------------
+# Sitemaps
+# -----------------------------------------------------------------------------
+Sitemap: https://eoynx.com/sitemap.xml
+
+# -----------------------------------------------------------------------------
+# AI Agent Discovery Files
+# -----------------------------------------------------------------------------
+# LLMs.txt (AI agent instructions): https://eoynx.com/llms.txt
+# AI.txt (agent-specific config): https://eoynx.com/ai.txt
+# Agent API: https://eoynx.com/api/agent
+# MCP Endpoint: https://eoynx.com/api/agent/mcp
+# Health Check: https://eoynx.com/api/agent/health

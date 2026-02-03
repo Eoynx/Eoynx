@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="sunGradient180" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#ea580c"/>
+      <stop offset="100%" style="stop-color:#fb923c"/>
+    </linearGradient>
+    <linearGradient id="bgGradient180" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    <linearGradient id="glowGradient180" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#f97316;stop-opacity:0.2"/>
+      <stop offset="100%" style="stop-color:#f97316;stop-opacity:0.6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="180" height="180" rx="40" fill="url(#bgGradient180)"/>
+  
+  <!-- Sun glow -->
+  <ellipse cx="90" cy="110" rx="50" ry="25" fill="url(#glowGradient180)"/>
+  
+  <!-- Horizon line -->
+  <rect x="25" y="108" width="130" height="3" rx="1.5" fill="#334155"/>
+  
+  <!-- Sun (half circle above horizon) -->
+  <path d="M 55 110 A 35 35 0 0 1 125 110" fill="url(#sunGradient180)"/>
+  
+  <!-- Sun rays -->
+  <g stroke="#f97316" stroke-width="5" stroke-linecap="round">
+    <line x1="90" y1="50" x2="90" y2="30"/>
+    <line x1="60" y1="60" x2="48" y2="45"/>
+    <line x1="120" y1="60" x2="132" y2="45"/>
+    <line x1="40" y1="85" x2="22" y2="80"/>
+    <line x1="140" y1="85" x2="158" y2="80"/>
+  </g>
+  
+  <!-- Inner sun highlight -->
+  <path d="M 70 110 A 20 20 0 0 1 110 110" fill="none" stroke="#fbbf24" stroke-width="2" opacity="0.4"/>
+</svg>

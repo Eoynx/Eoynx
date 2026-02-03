@@ -1,6 +1,7 @@
 /**
  * Agent Gateway Middleware
  * Edge Runtime에서 실행되어 에이전트 인증 및 접근 제어 수행
+ * AI 봇과 일반 사용자를 구분하여 최적화된 콘텐츠 제공
  */
 
 import { NextResponse } from 'next/server';
@@ -14,8 +15,42 @@ export const config = {
     '/api/ai/:path*',
     '/:path*/agent',
     '/:path*/ai',
+    // AI 에이전트 발견 파일
+    '/llms.txt',
+    '/ai.txt',
+    // 모든 페이지에서 봇 감지
+    '/',
+    '/dashboard/:path*',
   ],
 };
+
+// ===========================================
+// AI 봇/크롤러 User-Agent 패턴
+// ===========================================
+const AI_BOT_PATTERNS = [
+  // OpenAI
+  /gptbot/i,
+  /chatgpt-user/i,
+  /openai/i,
+  // Anthropic
+  /claude-web/i,
+  /anthropic/i,
+  /claudebot/i,
+  // Google AI
+  /google-extended/i,
+  /googlebot/i,
+  // Perplexity
+  /perplexitybot/i,
+  // Bing/Microsoft
+  /bingbot/i,
+  /bingpreview/i,
+  // Other AI crawlers
+  /cohere-ai/i,
+  /bytespider/i,
+  /ccbot/i,
+  /meta-externalagent/i,
+  /facebookbot/i,
+];
 
 // 허용된 에이전트 목록 (실제로는 DB에서 관리)
 const ALLOWED_AGENTS = new Set([
@@ -47,6 +82,39 @@ export async function middleware(request: NextRequest) {
     || request.headers.get('authorization')?.replace('Bearer ', '');
   const agentId = request.headers.get('x-agent-id') || 'anonymous';
   const clientIp = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+
+  // ===========================================
+  // AI 에이전트 발견 파일 동적 제공
+  // ===========================================
+  if (pathname === '/llms.txt') {
+    // 정적 파일 대신 동적 API로 리라이트 (토큰/User-Agent 기반 커스터마이징)
+    const url = request.nextUrl.clone();
+    url.pathname = '/api/llms-txt';
+    // 원본 헤더 유지하면서 리라이트
+    return NextResponse.rewrite(url);
+  }
+  
+  if (pathname === '/ai.txt') {
+    // ai.txt도 동적 API로 리라이트
+    const url = request.nextUrl.clone();
+    url.pathname = '/api/ai-txt';
+    return NextResponse.rewrite(url);
+  }
+
+  // ===========================================
+  // AI 봇 감지 및 리다이렉트
+  // ===========================================
+  const isAIBot = detectAIBot(userAgent);
+  const isAPIRoute = pathname.startsWith('/api/');
+  const isAgentRoute = pathname.endsWith('/agent') || pathname.endsWith('/ai');
+  
+  // AI 봇이 일반 페이지에 접속하면 /api/agent로 리다이렉트
+  // (이미 API 라우트이거나 /agent 경로인 경우 제외)
+  if (isAIBot && !isAPIRoute && !isAgentRoute && pathname === '/') {
+    // AI 봇에게 JSON-LD 데이터 직접 제공
+    const response = await createAIBotResponse(request, pathname);
+    return response;
+  }
 
   // 2. 악성 봇 차단
   if (isBlockedAgent(userAgent)) {
@@ -226,4 +294,181 @@ function logAccess(log: {
   if (process.env.NODE_ENV === 'development') {
     console.log('[AgentGateway]', JSON.stringify(log));
   }
+}
+
+// ===========================================
+// AI 봇 감지 함수
+// ===========================================
+
+/**
+ * User-Agent를 분석하여 AI 봇인지 판별
+ */
+function detectAIBot(userAgent: string): boolean {
+  return AI_BOT_PATTERNS.some(pattern => pattern.test(userAgent));
+}
+
+/**
+ * AI 봇에게 최적화된 JSON-LD 응답 생성
+ */
+async function createAIBotResponse(
+  request: NextRequest, 
+  pathname: string
+): Promise<NextResponse> {
+  const baseUrl = request.nextUrl.origin;
+  
+  // Eoynx 서비스 정보를 JSON-LD로 제공
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    '@id': `${baseUrl}/`,
+    name: 'Eoynx',
+    alternateName: '이오닉스',
+    description: 'AI Agent-Friendly Web Gateway Platform. 어둠을 가르고 시작되는 새벽. AI와 웹의 새로운 전환점을 열다.',
+    url: baseUrl,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Web',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      description: 'Free tier available',
+    },
+    featureList: [
+      '구조화된 데이터 제공 (Schema.org JSON-LD)',
+      '실시간 컨텍스트 브리핑',
+      'M2M 인증 (JWT 기반)',
+      'MCP (Model Context Protocol) 지원',
+      '에이전트 권한 제어 (Guardrail)',
+      'Dynamic Prompt 생성',
+    ],
+    keywords: ['AI', 'Agent', 'Gateway', 'API', 'JSON-LD', 'Schema.org', 'MCP', 'Authentication'],
+    creator: {
+      '@type': 'Organization',
+      name: 'Eoynx Team',
+      url: baseUrl,
+    },
+    mainEntity: {
+      '@type': 'WebAPI',
+      name: 'Eoynx Agent API',
+      description: 'AI 에이전트를 위한 구조화된 데이터 API',
+      documentation: `${baseUrl}/docs`,
+      endpointUrl: `${baseUrl}/api/agent`,
+      serviceType: 'REST API',
+      availableChannels: [
+        {
+          '@type': 'ServiceChannel',
+          name: 'Agent Gateway',
+          serviceUrl: `${baseUrl}/api/agent`,
+        },
+        {
+          '@type': 'ServiceChannel',
+          name: 'MCP Endpoint',
+          serviceUrl: `${baseUrl}/api/agent/mcp`,
+        },
+        {
+          '@type': 'ServiceChannel',
+          name: 'Health Check',
+          serviceUrl: `${baseUrl}/api/agent/health`,
+        },
+      ],
+    },
+    potentialAction: [
+      {
+        '@type': 'SearchAction',
+        target: `${baseUrl}/api/agent/search?q={search_term}`,
+        'query-input': 'required name=search_term',
+      },
+      {
+        '@type': 'ReadAction',
+        target: `${baseUrl}/api/agent`,
+        description: 'Get structured site data',
+      },
+    ],
+    llmsTxt: `${baseUrl}/llms.txt`,
+    aiTxt: `${baseUrl}/ai.txt`,
+    agentInstructions: `
+## Eoynx - AI Agent Gateway
+
+### Quick Start
+1. GET ${baseUrl}/api/agent - 구조화된 사이트 데이터 조회
+2. GET ${baseUrl}/api/agent/health - 서비스 상태 확인
+3. POST ${baseUrl}/api/agent/auth/token - 에이전트 토큰 발급
+
+### Authentication
+모든 보호된 엔드포인트에 X-Agent-Token 헤더 필요
+
+### Available Actions
+- search: 사이트 내 검색
+- view: 상세 정보 조회
+- execute: 액션 실행 (권한 필요)
+
+### Rate Limits
+- 100 requests/minute (익명)
+- 1000 requests/minute (인증됨)
+
+### Documentation
+- Full API Docs: ${baseUrl}/docs
+- LLMs.txt: ${baseUrl}/llms.txt
+- OpenAPI Spec: ${baseUrl}/api/openapi
+    `,
+  };
+
+  // 간결한 텍스트 버전도 포함
+  const textSummary = `
+# Eoynx (이오닉스) - AI Agent Gateway
+
+> "어둠을 가르고 시작되는 새벽" - Where Dawn Breaks Through
+
+## What is Eoynx?
+Eoynx는 웹사이트를 AI 에이전트 친화적으로 만드는 게이트웨이 플랫폼입니다.
+URL에 /ai 또는 /agent를 붙이면 AI가 즉시 이해할 수 있는 구조화된 데이터를 제공합니다.
+
+## API Endpoints
+- ${baseUrl}/api/agent - Main endpoint
+- ${baseUrl}/api/agent/health - Health check
+- ${baseUrl}/api/agent/search?q={query} - Search
+- ${baseUrl}/api/agent/mcp - MCP protocol
+
+## Quick Example
+\`\`\`
+GET ${baseUrl}/api/agent
+Accept: application/json
+
+Response:
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "gateway": { "version": "1.0.0" },
+  "availableActions": [...]
+}
+\`\`\`
+
+## More Information
+- Documentation: ${baseUrl}/docs
+- LLMs.txt: ${baseUrl}/llms.txt
+- GitHub: https://github.com/eoynx/eoynx
+`;
+
+  return new NextResponse(
+    JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [structuredData],
+      textSummary,
+      meta: {
+        generatedFor: 'AI Bot',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+      },
+    }),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'X-Gateway-Version': '1.0.0',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Served-For': 'AI-Bot',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    }
+  );
 }

@@ -1,12 +1,14 @@
 'use client';
 
+import { SunriseIcon } from '@/components/brand/EoynxLogo';
+
 export default function DashboardHeader() {
   return (
     <header className="sticky top-0 z-40 bg-onyx-900 border-b border-onyx-800">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
         {/* 모바일 로고 */}
         <div className="lg:hidden flex items-center gap-1">
-          <span className="text-lg">🌅</span>
+          <SunriseIcon size={20} className="text-dawn-500" />
           <span className="text-lg font-bold">
             <span className="text-dawn-500">E</span>
             <span className="text-onyx-100">o</span>

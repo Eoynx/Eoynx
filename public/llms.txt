@@ -1,78 +1,221 @@
 # Eoynx (이오닉스) - AI Agent Gateway Platform
 > "어둠을 가르고 시작되는 새벽" - AI와 웹의 새로운 전환점을 열다
 
-## 📍 서비스 개요
-Eoynx는 AI 에이전트를 위한 전용 인터페이스를 제공합니다.
-HTML 크롤링 없이 JSON API를 통해 모든 기능에 접근할 수 있습니다.
+## 🌅 About Eoynx
+Eoynx = Eos (그리스 새벽의 여신) + Onyx (검은 보석)
+웹사이트를 AI 에이전트 친화적으로 만드는 차세대 게이트웨이 플랫폼입니다.
 
-## 🔗 핵심 엔드포인트
+### 핵심 가치
+- **Zero HTML Parsing**: JSON API로 모든 데이터에 접근
+- **Schema.org Compliant**: 표준화된 구조화 데이터
+- **MCP Support**: Model Context Protocol 지원
+- **Real-time Context**: 실시간 상황 브리핑
 
-### 취급 설명서 (필독!)
-- `GET /api/ai-manifest.json` - 전체 API 명세 및 사용 가이드
+## 📍 빠른 시작 가이드
 
-### 정보 조회
-- `GET /api/agent` - 사이트 컨텍스트 및 가용 액션 목록
-- `GET /api/agent/search?q={keyword}` - 구조화된 검색
-- `GET /api/agent/health` - 서비스 상태 확인
-
-### 인증
-- `POST /api/agent/auth/token` - 에이전트 토큰 발급
-
-### 액션 실행
-- `POST /api/agent/action` - 명령어 기반 액션 실행
-- `POST /api/agent/sandbox` - 샌드박스 시뮬레이션 (안전 테스트)
-
-## 🎯 사용 가능한 액션
-| 액션 ID | 설명 | 권한 | 확인 필요 |
-|---------|------|------|----------|
-| search | 상품/콘텐츠 검색 | read | ❌ |
-| add_to_cart | 장바구니 추가 | write | ❌ |
-| view_cart | 장바구니 조회 | read | ❌ |
-| purchase | 구매 진행 | execute | ✅ |
-| subscribe_alert | 알림 구독 | write | ❌ |
-
-## 🔐 인증 방법
-모든 write/execute 액션은 인증이 필요합니다.
-
+### Step 1: 서비스 상태 확인
 ```
-Authorization: Bearer <your-token>
-또는
-X-Agent-Token: <your-token>
+GET https://eoynx.com/api/agent/health
 ```
 
-토큰 발급:
-```json
-POST /api/agent/auth/token
+### Step 2: 사이트 컨텍스트 조회
+```
+GET https://eoynx.com/api/agent
+Accept: application/json
+```
+
+### Step 3: 토큰 발급 (선택)
+```
+POST https://eoynx.com/api/agent/auth/token
+Content-Type: application/json
+
 {
   "agentId": "your-agent-id",
-  "agentSecret": "your-secret-key"
+  "provider": "openai|anthropic|custom"
 }
 ```
 
-## ⚠️ 주의사항
-1. Rate Limit: 분당 100회, 일일 10,000회
-2. execute 권한 액션(구매 등)은 반드시 `confirmed: true` 필요
-3. HTML 파싱 금지 - 항상 JSON API 사용
-4. 무한 루프 요청 금지
+## 🔗 핵심 엔드포인트
+
+### 필수 읽기
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/ai-manifest.json` | 전체 API 명세 |
+| `GET /llms.txt` | 이 파일 |
+| `GET /ai.txt` | AI 크롤러용 지침 |
+
+### 정보 조회
+| 엔드포인트 | 설명 | 인증 |
+|-----------|------|------|
+| `GET /api/agent` | 사이트 컨텍스트 및 가용 액션 | ❌ |
+| `GET /api/agent/search?q={keyword}` | 구조화된 검색 | ❌ |
+| `GET /api/agent/health` | 서비스 상태 | ❌ |
+| `GET /api/openapi` | OpenAPI 스펙 | ❌ |
+
+### 인증 & 권한
+| 엔드포인트 | 설명 | 인증 |
+|-----------|------|------|
+| `POST /api/agent/auth/token` | 토큰 발급 | ❌ |
+| `GET /api/agent/reputation` | 에이전트 평판 조회 | ✅ |
+
+### 액션 실행
+| 엔드포인트 | 설명 | 인증 |
+|-----------|------|------|
+| `POST /api/agent/action` | 액션 실행 | ✅ |
+| `POST /api/agent/sandbox` | 샌드박스 테스트 | ❌ |
+| `GET /api/agent/stream` | SSE 스트리밍 | ✅ |
+| `POST /api/agent/mcp` | MCP 프로토콜 | ✅ |
+
+## 🎯 사용 가능한 액션
+
+| 액션 ID | 설명 | 권한 | 확인 필요 |
+|---------|------|------|----------|
+| search | 콘텐츠 검색 | read | ❌ |
+| view | 상세 정보 조회 | read | ❌ |
+| add_to_cart | 장바구니 추가 | cart | ❌ |
+| view_cart | 장바구니 조회 | cart | ❌ |
+| purchase | 구매 진행 | execute | ✅ |
+| subscribe_alert | 알림 구독 | write | ❌ |
+| create_order | 주문 생성 | execute | ✅ |
+
+## 🔐 인증 방법
+
+### 헤더 방식 (권장)
+```
+X-Agent-Token: <your-jwt-token>
+```
+
+### Bearer 토큰
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### 토큰 발급 요청
+```json
+POST /api/agent/auth/token
+{
+  "agentId": "claude-assistant-001",
+  "provider": "anthropic",
+  "metadata": {
+    "purpose": "user-assistance",
+    "version": "3.5"
+  }
+}
+```
+
+### 토큰 발급 응답
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJ...",
+    "expiresAt": "2026-02-04T00:00:00Z",
+    "permissions": ["read", "search"],
+    "rateLimit": {
+      "requests": 1000,
+      "window": "1h"
+    }
+  }
+}
+```
+
+## ⚠️ 가드레일 & 제한
+
+### Rate Limits
+| 티어 | 분당 | 일일 |
+|------|------|------|
+| 익명 | 100 | 10,000 |
+| 인증됨 | 1,000 | 100,000 |
+| Verified | 5,000 | 500,000 |
+
+### 규칙
+1. ❌ HTML 파싱 금지 - 항상 JSON API 사용
+2. ❌ 무한 루프 요청 금지
+3. ✅ execute 권한 액션은 `confirmed: true` 필수
+4. ✅ 에러 발생 시 exponential backoff 적용
+
+### 평판 시스템
+- 성공적인 요청: +1점
+- 실패한 요청: -5점
+- 규칙 위반: -50점
+- 레벨: new(0-299) → basic(300-499) → trusted(500-699) → verified(700-899) → elite(900+)
 
 ## 📊 응답 형식
-모든 응답은 다음 형식을 따릅니다:
+
+### 성공 응답
 ```json
 {
   "success": true,
   "data": { ... },
   "meta": {
     "timestamp": "2026-02-03T10:00:00Z",
-    "requestId": "uuid",
-    "version": "1.0.0"
+    "requestId": "uuid-v4",
+    "version": "1.0.0",
+    "responseTime": "45ms"
   }
 }
 ```
 
-## 🆘 문의
-- 기술 지원: support@agent-gateway.dev
-- 문서: https://docs.agent-gateway.dev
+### 에러 응답
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Try again in 60 seconds.",
+    "retryAfter": 60
+  },
+  "meta": { ... }
+}
+```
+
+## 🔧 MCP (Model Context Protocol)
+
+### 초기화
+```json
+POST /api/agent/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {}
+  }
+}
+```
+
+### 도구 목록 조회
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
+}
+```
+
+### 도구 실행
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "search",
+    "arguments": { "query": "AI gateway" }
+  }
+}
+```
+
+## 🆘 지원
+
+| 채널 | URL |
+|------|-----|
+| 문서 | https://eoynx.com/docs |
+| API 상태 | https://eoynx.com/api/agent/health |
+| GitHub | https://github.com/eoynx/eoynx |
+| 이메일 | support@eoynx.com |
 
 ---
-Last Updated: 2026-02-03
-Version: 1.0.0
+**Eoynx** - Where Dawn Breaks Through
+Last Updated: 2026-02-03 | Version: 1.0.0

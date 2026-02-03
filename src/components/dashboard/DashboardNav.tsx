@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SunriseIcon } from '@/components/brand/EoynxLogo';
 
 const navigation = [
   { 
@@ -10,6 +11,27 @@ const navigation = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    )
+  },
+  { 
+    name: '서비스 등록', 
+    href: '/dashboard/services',
+    badge: 'Free',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+      </svg>
+    )
+  },
+  { 
+    name: '프록시 파서', 
+    href: '/dashboard/proxy',
+    badge: 'Pro',
+    badgeColor: 'purple',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
       </svg>
     )
   },
@@ -104,7 +126,7 @@ export default function DashboardNav() {
           {/* 로고 */}
           <div className="flex items-center flex-shrink-0 px-4">
             <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl">🌅</span>
+              <SunriseIcon size={28} className="text-dawn-500" />
               <span className="text-xl font-bold">
                 <span className="text-dawn-500">Eo</span>
                 <span className="text-onyx-100">ynx</span>
@@ -120,16 +142,27 @@ export default function DashboardNav() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  className={`group flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     isActive
                       ? 'bg-dawn-500/10 text-dawn-500 border border-dawn-500/30'
                       : 'text-onyx-300 hover:bg-onyx-800 hover:text-onyx-100'
                   }`}
                 >
-                  <span className={`mr-3 ${isActive ? 'text-dawn-500' : 'text-onyx-500'}`}>
-                    {item.icon}
-                  </span>
-                  {item.name}
+                  <div className="flex items-center">
+                    <span className={`mr-3 ${isActive ? 'text-dawn-500' : 'text-onyx-500'}`}>
+                      {item.icon}
+                    </span>
+                    {item.name}
+                  </div>
+                  {'badge' in item && item.badge && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                      'badgeColor' in item && item.badgeColor === 'purple' 
+                        ? 'bg-purple-500/20 text-purple-400' 
+                        : 'bg-green-500/20 text-green-400'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}

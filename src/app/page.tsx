@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { EoynxHeroLogo, SunriseIcon } from '@/components/brand/EoynxLogo';
+import { DashboardIcon, ShieldIcon, LiveIcon, BrainIcon, KeyIcon, RobotIcon, EosIcon, OnyxIcon } from '@/components/brand/FeatureIcons';
 
 export default function HomePage() {
   return (
@@ -13,9 +15,7 @@ export default function HomePage() {
           <div className="text-center">
             {/* Logo */}
             <div className="flex justify-center mb-8">
-              <div className="flex items-center gap-3">
-                <div className="text-5xl">🌅</div>
-              </div>
+              <EoynxHeroLogo />
             </div>
 
             <h1 className="text-5xl font-bold tracking-tight sm:text-7xl">
@@ -67,12 +67,16 @@ export default function HomePage() {
           <h2 className="text-sm uppercase tracking-widest text-dawn-500 mb-4">About the Name</h2>
           <div className="grid md:grid-cols-2 gap-8 mt-8">
             <div className="p-6 bg-onyx-800/50 rounded-2xl border border-onyx-700">
-              <div className="text-4xl mb-4">☀️</div>
+              <div className="text-dawn-500 mb-4">
+                <EosIcon size={48} className="mx-auto" />
+              </div>
               <h3 className="text-xl font-bold text-onyx-100 mb-2">Eos (에오스)</h3>
               <p className="text-onyx-400">그리스 신화의 새벽의 여신. 매일 새로운 시작을 알리는 존재.</p>
             </div>
             <div className="p-6 bg-onyx-800/50 rounded-2xl border border-onyx-700">
-              <div className="text-4xl mb-4">💎</div>
+              <div className="text-onyx-300 mb-4">
+                <OnyxIcon size={48} className="mx-auto" />
+              </div>
               <h3 className="text-xl font-bold text-onyx-100 mb-2">Onyx (오닉스)</h3>
               <p className="text-onyx-400">강인함과 희소성을 상징하는 검은 보석. 변치 않는 신뢰.</p>
             </div>
@@ -94,8 +98,8 @@ export default function HomePage() {
             {/* Feature 1 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">📋</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <DashboardIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   에이전트 대시보드
@@ -109,8 +113,8 @@ export default function HomePage() {
             {/* Feature 2 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">🛡️</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <ShieldIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   권한 제어 (Guardrail)
@@ -124,8 +128,8 @@ export default function HomePage() {
             {/* Feature 3 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">📡</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <LiveIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   실시간 컨텍스트
@@ -139,8 +143,8 @@ export default function HomePage() {
             {/* Feature 4 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">🧠</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <BrainIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   Dynamic Prompt
@@ -154,8 +158,8 @@ export default function HomePage() {
             {/* Feature 5 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">🔐</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <KeyIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   M2M 인증
@@ -169,8 +173,8 @@ export default function HomePage() {
             {/* Feature 6 */}
             <div className="group p-6 bg-onyx-900 rounded-2xl border border-onyx-800 hover:border-dawn-500/50 transition-all duration-300">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-dawn-500/10 rounded-lg">
-                  <span className="text-2xl">🤖</span>
+                <div className="p-2 bg-dawn-500/10 rounded-lg text-dawn-500">
+                  <RobotIcon size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-onyx-100">
                   MCP 지원
@@ -236,7 +240,9 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-24 bg-gradient-to-b from-onyx-950 to-onyx-900">
         <div className="mx-auto max-w-4xl px-6 text-center">
-          <div className="text-6xl mb-6">🌅</div>
+          <div className="text-dawn-500 mb-6">
+            <SunriseIcon size={64} className="mx-auto" />
+          </div>
           <h2 className="text-3xl font-bold text-onyx-100 mb-4">
             AI의 새로운 새벽을 함께 열어가세요
           </h2>
@@ -257,7 +263,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">🌅</span>
+              <SunriseIcon size={28} className="text-dawn-500" />
               <span className="text-xl font-bold">
                 <span className="text-dawn-500">Eo</span>
                 <span className="text-onyx-100">ynx</span>

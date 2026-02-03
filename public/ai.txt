@@ -1,6 +1,35 @@
-# AI Agent Access Control
-# 이 파일은 AI 에이전트의 접근 권한을 정의합니다.
-# robots.txt와 유사한 역할을 하지만, AI 에이전트 전용입니다.
+# =============================================================================
+# Eoynx (이오닉스) - AI Agent Configuration File
+# ai.txt v2.0 - Comprehensive Agent Instructions & Access Control
+# =============================================================================
+# Website: https://eoynx.com
+# Documentation: https://eoynx.com/docs  
+# LLMs.txt: https://eoynx.com/llms.txt
+# Last Updated: 2025-02-03
+# =============================================================================
+
+# =============================================
+# IDENTITY
+# =============================================
+name: Eoynx
+name_ko: 이오닉스
+tagline: AI Agent-Friendly Web Gateway
+tagline_ko: 어둠을 가르고 시작되는 새벽
+version: 2.0.0
+homepage: https://eoynx.com
+
+# =============================================
+# API ENDPOINTS
+# =============================================
+api_base: https://eoynx.com/api/agent
+endpoints:
+  main: /api/agent
+  health: /api/agent/health
+  search: /api/agent/search?q={query}
+  mcp: /api/agent/mcp
+  auth: /api/agent/auth/token
+  context: /api/agent/context
+  prompt: /api/agent/prompt
 
 # =============================================
 # 기본 정책
@@ -9,38 +38,85 @@ User-agent: *
 Allow: /api/agent/
 Allow: /api/ai-manifest.json
 Allow: /llms.txt
+Allow: /ai.txt
 Disallow: /api/admin/
 Disallow: /dashboard/
+Rate-limit: 100/minute
 
 # =============================================
-# OpenAI GPT 에이전트
+# OpenAI 에이전트 (GPT-4, ChatGPT)
 # =============================================
 User-agent: GPTBot
 User-agent: ChatGPT-User
 Trust-level: high
 Allow: /api/agent/*
-Max-requests-per-minute: 100
+Rate-limit: 1000/minute
 Permissions: read, write, execute
+Welcome: true
 
 # =============================================
 # Anthropic Claude 에이전트
 # =============================================
 User-agent: ClaudeBot
-User-agent: Claude-User
+User-agent: Claude-Web
+User-agent: anthropic-ai
 Trust-level: high
 Allow: /api/agent/*
-Max-requests-per-minute: 100
+Rate-limit: 1000/minute
 Permissions: read, write, execute
+Welcome: true
 
 # =============================================
-# Google 에이전트
+# Google AI 에이전트 (Gemini, Bard)
 # =============================================
-User-agent: GoogleBot
-User-agent: Gemini-User
+User-agent: Google-Extended
+User-agent: Googlebot
+Trust-level: high
+Allow: /api/agent/*
+Rate-limit: 500/minute
+Permissions: read, write
+Welcome: true
+
+# =============================================
+# Perplexity AI
+# =============================================
+User-agent: PerplexityBot
+Trust-level: high
+Allow: /api/agent/*
+Rate-limit: 500/minute
+Permissions: read, write
+Welcome: true
+
+# =============================================
+# Microsoft Copilot / Bing
+# =============================================
+User-agent: Bingbot
 Trust-level: medium
 Allow: /api/agent/*
-Max-requests-per-minute: 50
+Rate-limit: 300/minute
 Permissions: read, write
+Welcome: true
+
+# =============================================
+# Meta AI
+# =============================================
+User-agent: Meta-ExternalAgent
+User-agent: FacebookBot
+Trust-level: medium
+Allow: /api/agent/*
+Rate-limit: 300/minute
+Permissions: read
+Welcome: true
+
+# =============================================
+# Cohere AI
+# =============================================
+User-agent: cohere-ai
+Trust-level: medium
+Allow: /api/agent/*
+Rate-limit: 300/minute
+Permissions: read, write
+Welcome: true
 
 # =============================================
 # 기타 AI 에이전트 (기본 정책)
@@ -48,8 +124,9 @@ Permissions: read, write
 User-agent: *Bot
 Trust-level: low
 Allow: /api/agent/health
-Allow: /api/ai-manifest.json
-Max-requests-per-minute: 10
+Allow: /api/agent
+Allow: /llms.txt
+Rate-limit: 50/minute
 Permissions: read
 
 # =============================================
@@ -57,13 +134,50 @@ Permissions: read
 # =============================================
 User-agent: MaliciousBot
 User-agent: SpamBot
+User-agent: AhrefsBot
+User-agent: SemrushBot
 Disallow: /
 
 # =============================================
-# 메타 정보
+# AUTHENTICATION
 # =============================================
-# Eoynx AI Agent Gateway Platform
-# https://eoynx.com
-# 문의: support@eoynx.com
-# 마지막 업데이트: 2025-01
-# 버전: 1.0.0
+auth_type: jwt
+auth_header: X-Agent-Token
+auth_endpoint: POST /api/agent/auth/token
+auth_body: {"agent_id": "your-id", "secret": "your-secret"}
+token_expiry: 3600
+anonymous_access: true
+
+# =============================================
+# MCP (Model Context Protocol)
+# =============================================
+mcp_enabled: true
+mcp_endpoint: /api/agent/mcp
+mcp_version: 2024-11-05
+mcp_methods: initialize, tools/list, tools/call, resources/list
+
+# =============================================
+# QUICK START
+# =============================================
+# 1. Health Check: GET https://eoynx.com/api/agent/health
+# 2. Get Data: GET https://eoynx.com/api/agent
+# 3. Search: GET https://eoynx.com/api/agent/search?q=query
+# 4. Auth: POST https://eoynx.com/api/agent/auth/token
+# 5. MCP: POST https://eoynx.com/api/agent/mcp
+
+# =============================================
+# 연락처
+# =============================================
+support: support@eoynx.com
+security: security@eoynx.com
+github: https://github.com/eoynx/agent-gateway
+
+# =============================================
+# AI 정책
+# =============================================
+# We welcome AI agents! This site is designed to be AI-friendly.
+# - Structured data (JSON-LD) available via User-Agent detection
+# - Full API documentation at /llms.txt
+# - No CAPTCHAs or bot-blocking for legitimate AI agents
+# - Please identify your agent via User-Agent header
+# - Respect rate limits and include proper attribution
