@@ -1,0 +1,69 @@
+# AI Agent Access Control
+# 이 파일은 AI 에이전트의 접근 권한을 정의합니다.
+# robots.txt와 유사한 역할을 하지만, AI 에이전트 전용입니다.
+
+# =============================================
+# 기본 정책
+# =============================================
+User-agent: *
+Allow: /api/agent/
+Allow: /api/ai-manifest.json
+Allow: /llms.txt
+Disallow: /api/admin/
+Disallow: /dashboard/
+
+# =============================================
+# OpenAI GPT 에이전트
+# =============================================
+User-agent: GPTBot
+User-agent: ChatGPT-User
+Trust-level: high
+Allow: /api/agent/*
+Max-requests-per-minute: 100
+Permissions: read, write, execute
+
+# =============================================
+# Anthropic Claude 에이전트
+# =============================================
+User-agent: ClaudeBot
+User-agent: Claude-User
+Trust-level: high
+Allow: /api/agent/*
+Max-requests-per-minute: 100
+Permissions: read, write, execute
+
+# =============================================
+# Google 에이전트
+# =============================================
+User-agent: GoogleBot
+User-agent: Gemini-User
+Trust-level: medium
+Allow: /api/agent/*
+Max-requests-per-minute: 50
+Permissions: read, write
+
+# =============================================
+# 기타 AI 에이전트 (기본 정책)
+# =============================================
+User-agent: *Bot
+Trust-level: low
+Allow: /api/agent/health
+Allow: /api/ai-manifest.json
+Max-requests-per-minute: 10
+Permissions: read
+
+# =============================================
+# 차단된 에이전트
+# =============================================
+User-agent: MaliciousBot
+User-agent: SpamBot
+Disallow: /
+
+# =============================================
+# 메타 정보
+# =============================================
+# Eoynx AI Agent Gateway Platform
+# https://eoynx.com
+# 문의: support@eoynx.com
+# 마지막 업데이트: 2025-01
+# 버전: 1.0.0
