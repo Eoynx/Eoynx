@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
@@ -14,7 +14,7 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -323,5 +323,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-onyx-900 via-onyx-800 to-onyx-900 flex items-center justify-center">
+        <div className="text-onyx-400">로딩 중...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

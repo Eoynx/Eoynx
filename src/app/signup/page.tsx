@@ -298,7 +298,7 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={isLoading || (passwordValidation && !passwordValidation.valid)}
+              disabled={isLoading || (passwordValidation !== null && !passwordValidation.valid)}
               className="w-full py-3 bg-gradient-to-r from-dawn-500 to-dawn-600 text-white font-semibold rounded-lg hover:from-dawn-600 hover:to-dawn-700 focus:outline-none focus:ring-2 focus:ring-dawn-500 focus:ring-offset-2 focus:ring-offset-onyx-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (

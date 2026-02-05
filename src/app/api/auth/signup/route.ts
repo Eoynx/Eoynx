@@ -92,7 +92,9 @@ export async function POST(request: NextRequest) {
 
     // 사용자 프로필 테이블에 추가 정보 저장 (있는 경우)
     try {
-      await supabase.from('profiles').insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      await sb.from('profiles').insert({
         id: data.user.id,
         email: data.user.email,
         name,

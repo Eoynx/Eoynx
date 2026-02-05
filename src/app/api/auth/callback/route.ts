@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
 
     // 프로필 테이블에 사용자 정보 저장/업데이트 (있는 경우)
     try {
-      await supabase.from('profiles').upsert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      await sb.from('profiles').upsert({
         id: user.id,
         email: user.email,
         name,
