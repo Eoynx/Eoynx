@@ -266,11 +266,31 @@ export interface Database {
 let supabaseClient: SupabaseClient<Database> | null = null;
 let supabaseAdminClient: SupabaseClient<Database> | null = null;
 
+// 더미 클라이언트 (빌드 타임 또는 환경 변수 없을 때 사용)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createDummyClient = (): SupabaseClient<Database> => {
+  console.warn('[Supabase] Environment variables not configured, using dummy client');
+  return {
+    from: () => ({
+      select: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+};
+
 /**
  * 일반 클라이언트 (anon key)
  * 클라이언트 사이드 및 RLS가 적용된 쿼리용
  */
 export function getSupabaseClient(): SupabaseClient<Database> {
+  // 환경 변수가 없으면 더미 클라이언트 반환 (빌드 타임 안전 처리)
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return createDummyClient();
+  }
+  
   if (!supabaseClient) {
     supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -286,8 +306,9 @@ export function getSupabaseClient(): SupabaseClient<Database> {
  * 서버 사이드 전용, RLS 우회
  */
 export function getSupabaseAdmin(): SupabaseClient<Database> {
-  if (!supabaseServiceKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not defined');
+  // 환경 변수가 없으면 더미 클라이언트 반환 (빌드 타임 안전 처리)
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return createDummyClient();
   }
   
   if (!supabaseAdminClient) {
@@ -301,7 +322,12 @@ export function getSupabaseAdmin(): SupabaseClient<Database> {
   return supabaseAdminClient;
 }
 
-// 편의를 위한 기본 export
-export const supabase = typeof window === 'undefined' && supabaseServiceKey
-  ? getSupabaseAdmin()
-  : getSupabaseClient();
+// 편의를 위한 기본 export - 빌드 타임 안전 처리
+export const supabase = (() => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return createDummyClient();
+  }
+  return typeof window === 'undefined' && supabaseServiceKey
+    ? getSupabaseAdmin()
+    : getSupabaseClient();
+})();

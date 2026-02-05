@@ -4,15 +4,102 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import type { AgentIdentity, AgentProvider, ApiResponse, AgentToken } from '@/types';
 
 export const runtime = 'edge';
 
-// 간단한 인메모리 에이전트 등록 (실제로는 DB)
+// 메모리 저장소 (DB 미연결 시 폴백)
 const registeredAgents = new Map<string, { secret: string; permissions: string[] }>([
   ['demo-agent', { secret: 'demo-secret-123', permissions: ['read', 'write'] }],
   ['test-agent', { secret: 'test-secret-456', permissions: ['read'] }],
 ]);
+
+// 토큰 저장소 (메모리)
+const tokenStore = new Map<string, { agentId: string; expiresAt: number }>();
+
+// DB에서 에이전트 조회
+async function getAgentFromDB(agentId: string): Promise<{ secret: string; permissions: string[] } | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('agents')
+      .select('api_key, permissions')
+      .eq('id', agentId)
+      .single();
+    
+    if (error || !data) {
+      return registeredAgents.get(agentId) || null;
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = data as any;
+    return {
+      secret: d.api_key,
+      permissions: d.permissions || ['read'],
+    };
+  } catch {
+    return registeredAgents.get(agentId) || null;
+  }
+}
+
+// 토큰 저장
+async function saveTokenToDB(token: string, agentId: string, expiresAt: number): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('agent_tokens')
+      .upsert({
+        token,
+        agent_id: agentId,
+        expires_at: new Date(expiresAt * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      console.warn('Token save to DB failed:', error.message);
+      tokenStore.set(token, { agentId, expiresAt });
+    }
+  } catch {
+    tokenStore.set(token, { agentId, expiresAt });
+  }
+}
+
+// 토큰 검증
+async function validateTokenFromDB(token: string): Promise<{ valid: boolean; agentId?: string }> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('agent_tokens' as never)
+      .select('agent_id, expires_at')
+      .eq('token', token)
+      .single();
+    
+    if (error || !data) {
+      const memoryToken = tokenStore.get(token);
+      if (memoryToken) {
+        const now = Math.floor(Date.now() / 1000);
+        return {
+          valid: memoryToken.expiresAt > now,
+          agentId: memoryToken.agentId,
+        };
+      }
+      return { valid: false };
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = data as any;
+    const now = new Date();
+    const expiresAt = new Date(d.expires_at);
+    return {
+      valid: expiresAt > now,
+      agentId: d.agent_id,
+    };
+  } catch {
+    return { valid: false };
+  }
+}
 
 /**
  * POST /api/agent/auth/token - 토큰 발급
@@ -33,8 +120,8 @@ export async function POST(request: NextRequest) {
       } as ApiResponse<null>, { status: 400 });
     }
 
-    // 에이전트 인증
-    const agent = registeredAgents.get(agentId);
+    // DB에서 에이전트 인증
+    const agent = await getAgentFromDB(agentId);
     if (!agent || agent.secret !== agentSecret) {
       return NextResponse.json({
         success: false,
@@ -59,9 +146,13 @@ export async function POST(request: NextRequest) {
 
     // Base64 인코딩으로 간단한 토큰 생성 (실제로는 JWT 서명)
     const token = btoa(JSON.stringify(tokenPayload));
+    const fullToken = `ag_${token}`;
+
+    // DB에 토큰 저장
+    await saveTokenToDB(fullToken, agentId, expiresAt);
 
     const tokenResponse: AgentToken = {
-      token: `ag_${token}`,
+      token: fullToken,
       agentId,
       issuedAt: now,
       expiresAt,

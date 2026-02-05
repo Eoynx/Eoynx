@@ -175,22 +175,35 @@ Generated via https://eoynx.com`;
     }, null, 2);
   };
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const handleSave = async () => {
+    // 필수 필드 검증
+    if (!serviceData.name || !serviceData.apiBase || !serviceData.description) {
+      setSaveError('필수 필드를 모두 입력해주세요: 서비스명(영문), API Base URL, 설명');
+      return;
+    }
+
     setIsSaving(true);
+    setSaveError(null);
     try {
-      // TODO: 실제 API 호출로 Supabase에 저장
       const response = await fetch('/api/services', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(serviceData),
       });
       
-      if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+      
+      if (response.ok && data.slug) {
         setSavedUrl(`https://eoynx.com/s/${data.slug}`);
+      } else {
+        const errorMsg = data.details ? `${data.error}: ${data.details}` : (data.error || '저장에 실패했습니다.');
+        setSaveError(errorMsg);
       }
     } catch (error) {
       console.error('Failed to save:', error);
+      setSaveError('네트워크 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }
@@ -424,16 +437,48 @@ Generated via https://eoynx.com`;
           {/* 저장 버튼 */}
           <button
             onClick={handleSave}
-            disabled={isSaving || !serviceData.name || !serviceData.apiBase}
-            className="w-full py-3 bg-gradient-to-r from-dawn-500 to-dawn-600 hover:from-dawn-400 hover:to-dawn-500 disabled:from-onyx-700 disabled:to-onyx-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-dawn-500/20 disabled:shadow-none"
+            disabled={isSaving || !serviceData.name || !serviceData.apiBase || !serviceData.description}
+            className="w-full py-3 bg-gradient-to-r from-dawn-500 to-dawn-600 hover:from-dawn-400 hover:to-dawn-500 disabled:from-onyx-700 disabled:to-onyx-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-dawn-500/20 disabled:shadow-none flex items-center justify-center gap-2"
           >
-            {isSaving ? '저장 중...' : '서비스 등록하기'}
+            {isSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                저장 중...
+              </>
+            ) : '서비스 등록하기'}
           </button>
+
+          {saveError && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+              <p className="text-red-400 text-sm flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {saveError}
+              </p>
+            </div>
+          )}
 
           {savedUrl && (
             <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-              <p className="text-green-400 text-sm mb-2">✓ 서비스가 등록되었습니다!</p>
-              <code className="text-xs text-green-300 bg-green-500/10 px-2 py-1 rounded">{savedUrl}</code>
+              <p className="text-green-400 text-sm mb-2 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                서비스가 등록되었습니다!
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs text-green-300 bg-green-500/10 px-2 py-1 rounded truncate">{savedUrl}</code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(savedUrl)}
+                  className="text-green-400 hover:text-green-300 p-1"
+                  title="URL 복사"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
         </div>

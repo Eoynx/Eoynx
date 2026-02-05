@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import type { ApiResponse, AgentProvider, AgentPermissionLevel } from '@/types';
 
 export const runtime = 'edge';
@@ -64,8 +65,68 @@ interface ReputationEvent {
   reason: string;
 }
 
-// 인메모리 평판 저장소 (실제로는 DB)
+// 인메모리 평판 저장소 (DB 미연결 시 폴백)
 const reputationStore = new Map<string, AgentReputation>();
+
+// Supabase 헬퍼 함수
+async function getReputationFromDB(agentId: string): Promise<AgentReputation | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('agent_reputation' as never)
+      .select('*')
+      .eq('agent_id', agentId)
+      .single();
+    
+    if (error || !data) {
+      return reputationStore.get(agentId) || null;
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = data as any;
+    return {
+      agentId: d.agent_id,
+      provider: d.provider,
+      score: d.score,
+      level: d.level,
+      stats: d.stats,
+      badges: d.badges || [],
+      permissions: d.permissions || ['read'],
+      restrictions: d.restrictions,
+      history: d.history || [],
+    };
+  } catch {
+    return reputationStore.get(agentId) || null;
+  }
+}
+
+async function saveReputationToDB(reputation: AgentReputation): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('agent_reputation')
+      .upsert({
+        agent_id: reputation.agentId,
+        provider: reputation.provider,
+        score: reputation.score,
+        level: reputation.level,
+        stats: reputation.stats,
+        badges: reputation.badges,
+        permissions: reputation.permissions,
+        restrictions: reputation.restrictions,
+        history: reputation.history.slice(-50), // 최근 50개만 저장
+        updated_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      console.warn('DB save failed, using memory store:', error.message);
+      reputationStore.set(reputation.agentId, reputation);
+    }
+  } catch {
+    reputationStore.set(reputation.agentId, reputation);
+  }
+}
 
 // 레벨별 권한 매핑
 const LEVEL_PERMISSIONS: Record<ReputationLevel, AgentPermissionLevel[]> = {
@@ -113,7 +174,7 @@ export async function GET(request: NextRequest) {
     } as ApiResponse<null>, { status: 400 });
   }
 
-  const reputation = getOrCreateReputation(agentId);
+  const reputation = await getOrCreateReputation(agentId);
 
   return NextResponse.json({
     success: true,
@@ -155,13 +216,13 @@ export async function POST(request: NextRequest) {
       } as ApiResponse<null>, { status: 400 });
     }
 
-    const reputation = getOrCreateReputation(agentId);
+    const reputation = await getOrCreateReputation(agentId);
     
     // 이벤트 처리
     processReputationEvent(reputation, event);
     
-    // 저장
-    reputationStore.set(agentId, reputation);
+    // DB에 저장
+    await saveReputationToDB(reputation);
 
     return NextResponse.json({
       success: true,
@@ -193,10 +254,11 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 평판 조회 또는 생성
+ * 평판 조회 또는 생성 (비동기 - DB 사용)
  */
-function getOrCreateReputation(agentId: string): AgentReputation {
-  let reputation = reputationStore.get(agentId);
+async function getOrCreateReputation(agentId: string): Promise<AgentReputation> {
+  // DB에서 먼저 조회
+  let reputation = await getReputationFromDB(agentId);
 
   if (!reputation) {
     const provider = detectProvider(agentId);
@@ -238,7 +300,8 @@ function getOrCreateReputation(agentId: string): AgentReputation {
     }
 
     updateLevel(reputation);
-    reputationStore.set(agentId, reputation);
+    // DB에 저장
+    await saveReputationToDB(reputation);
   }
 
   // 마지막 활동 시간 업데이트

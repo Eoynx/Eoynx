@@ -21,6 +21,10 @@ export const config = {
     // 모든 페이지에서 봇 감지
     '/',
     '/dashboard/:path*',
+    // 인증 관련 페이지
+    '/login',
+    '/signup',
+    '/demo',
   ],
 };
 
@@ -99,6 +103,38 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/api/ai-txt';
     return NextResponse.rewrite(url);
+  }
+
+  // ===========================================
+  // 대시보드 인증 보호
+  // ===========================================
+  const isDashboardRoute = pathname.startsWith('/dashboard');
+  const isLoginPage = pathname === '/login';
+  const isSignupPage = pathname === '/signup';
+  const isDemoPage = pathname === '/demo';
+  const isAuthAPI = pathname.startsWith('/api/auth/');
+
+  // 로그인/회원가입/데모 페이지 및 인증 API는 인증 없이 접근 가능
+  if (!isLoginPage && !isSignupPage && !isDemoPage && !isAuthAPI && isDashboardRoute) {
+    const authToken = request.cookies.get('auth-token')?.value;
+    
+    if (!authToken) {
+      // 인증 토큰이 없으면 로그인 페이지로 리다이렉트
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // JWT 토큰 유효성 검증
+    const isValidAuth = await verifyAuthToken(authToken);
+    if (!isValidAuth) {
+      // 유효하지 않은 토큰이면 쿠키 삭제 후 로그인 페이지로
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete('auth-token');
+      return response;
+    }
   }
 
   // ===========================================
@@ -245,6 +281,44 @@ async function validateToken(token: string): Promise<{ valid: boolean; error?: s
   // const { payload } = await jwtVerify(token, secret);
   
   return { valid: true };
+}
+
+/**
+ * 사용자 인증 토큰 검증 (대시보드 접근용)
+ */
+async function verifyAuthToken(token: string): Promise<boolean> {
+  try {
+    if (!token || token.length < 10) {
+      return false;
+    }
+
+    // JWT 형식 검증
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return false;
+    }
+
+    // Base64 디코딩하여 payload 추출 및 만료 시간 확인
+    try {
+      const payload = JSON.parse(atob(parts[1]));
+      
+      // 만료 시간 확인
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        return false;
+      }
+
+      // 필수 클레임 확인
+      if (!payload.sub || !payload.email) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  } catch {
+    return false;
+  }
 }
 
 /**

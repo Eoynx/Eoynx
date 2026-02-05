@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import type { ApiResponse, AgentPermissionLevel } from '@/types';
 
 export const runtime = 'edge';
@@ -34,10 +35,8 @@ interface ActionResult {
   warnings?: string[];
 }
 
-// 데모용 장바구니 (실제로는 DB)
+// 메모리 저장소 (DB 미연결 시 폴백)
 const carts = new Map<string, { items: { productId: string; quantity: number }[] }>();
-
-// 데모용 주문 (실제로는 DB)
 const orders = new Map<string, {
   orderId: string;
   items: { productId: string; quantity: number; price: number }[];
@@ -45,6 +44,127 @@ const orders = new Map<string, {
   status: string;
   createdAt: string;
 }>();
+
+// Supabase 헬퍼 함수들
+async function getCartFromDB(agentId: string) {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('agent_carts' as never)
+      .select('*')
+      .eq('agent_id', agentId)
+      .single();
+    
+    if (error || !data) {
+      // 메모리에서 가져오기
+      return carts.get(agentId) || { items: [] };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { items: (data as any).items || [] };
+  } catch {
+    return carts.get(agentId) || { items: [] };
+  }
+}
+
+async function saveCartToDB(agentId: string, items: { productId: string; quantity: number }[]) {
+  try {
+    const supabase = getSupabaseClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('agent_carts')
+      .upsert({
+        agent_id: agentId,
+        items,
+        updated_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      // 메모리에 저장
+      carts.set(agentId, { items });
+    }
+  } catch {
+    carts.set(agentId, { items });
+  }
+}
+
+async function saveOrderToDB(order: {
+  orderId: string;
+  agentId: string;
+  items: { productId: string; quantity: number; price: number }[];
+  total: number;
+  status: string;
+}) {
+  try {
+    const supabase = getSupabaseClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('agent_orders')
+      .insert({
+        id: order.orderId,
+        agent_id: order.agentId,
+        items: order.items,
+        total: order.total,
+        status: order.status,
+        created_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      // 메모리에 저장
+      orders.set(order.orderId, {
+        ...order,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  } catch {
+    orders.set(order.orderId, {
+      ...order,
+      createdAt: new Date().toISOString(),
+    });
+  }
+}
+
+async function getOrderFromDB(orderId: string) {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('agent_orders' as never)
+      .select('*')
+      .eq('id', orderId)
+      .single();
+    
+    if (error || !data) {
+      return orders.get(orderId);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = data as any;
+    return {
+      orderId: d.id,
+      items: d.items,
+      total: d.total,
+      status: d.status,
+      createdAt: d.created_at,
+    };
+  } catch {
+    return orders.get(orderId);
+  }
+}
+
+async function clearCartInDB(agentId: string) {
+  try {
+    const supabase = getSupabaseClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('agent_carts')
+      .delete()
+      .eq('agent_id', agentId);
+    
+    if (error) {
+      carts.delete(agentId);
+    }
+  } catch {
+    carts.delete(agentId);
+  }
+}
 
 // 액션 핸들러 정의
 const actionHandlers: Record<string, ActionDefinition> = {
@@ -64,20 +184,19 @@ const actionHandlers: Record<string, ActionDefinition> = {
         };
       }
 
-      // 장바구니 가져오기 또는 생성
-      let cart = carts.get(context.agentId);
-      if (!cart) {
-        cart = { items: [] };
-        carts.set(context.agentId, cart);
-      }
+      // DB에서 장바구니 가져오기
+      const cart = await getCartFromDB(context.agentId);
 
       // 기존 항목 확인
-      const existingItem = cart.items.find(item => item.productId === productId);
+      const existingItem = cart.items.find((item: { productId: string; quantity: number }) => item.productId === productId);
       if (existingItem) {
         existingItem.quantity += quantity as number;
       } else {
         cart.items.push({ productId, quantity: quantity as number });
       }
+
+      // DB에 저장
+      await saveCartToDB(context.agentId, cart.items);
 
       return {
         success: true,
@@ -102,7 +221,8 @@ const actionHandlers: Record<string, ActionDefinition> = {
     requiredPermission: 'read',
     confirmationRequired: false,
     handler: async (_params, context) => {
-      const cart = carts.get(context.agentId);
+      // DB에서 장바구니 가져오기
+      const cart = await getCartFromDB(context.agentId);
       
       if (!cart || cart.items.length === 0) {
         return {
@@ -122,13 +242,13 @@ const actionHandlers: Record<string, ActionDefinition> = {
         'prod-005': 279000,
       };
 
-      const itemsWithPrice = cart.items.map(item => ({
+      const itemsWithPrice = cart.items.map((item: { productId: string; quantity: number }) => ({
         ...item,
         price: priceMap[item.productId] || 100000,
         subtotal: (priceMap[item.productId] || 100000) * item.quantity,
       }));
 
-      const total = itemsWithPrice.reduce((sum, item) => sum + item.subtotal, 0);
+      const total = itemsWithPrice.reduce((sum: number, item: { subtotal: number }) => sum + item.subtotal, 0);
 
       return {
         success: true,
@@ -154,7 +274,8 @@ const actionHandlers: Record<string, ActionDefinition> = {
     requiredPermission: 'write',
     confirmationRequired: false,
     handler: async (_params, context) => {
-      carts.delete(context.agentId);
+      // DB에서 삭제
+      await clearCartInDB(context.agentId);
       
       return {
         success: true,
@@ -191,7 +312,8 @@ const actionHandlers: Record<string, ActionDefinition> = {
         };
       }
 
-      const cart = carts.get(context.agentId);
+      // DB에서 장바구니 가져오기
+      const cart = await getCartFromDB(context.agentId);
       if (!cart || cart.items.length === 0) {
         return {
           success: false,
@@ -211,23 +333,24 @@ const actionHandlers: Record<string, ActionDefinition> = {
         'prod-005': 279000,
       };
 
-      const orderItems = cart.items.map(item => ({
+      const orderItems = cart.items.map((item: { productId: string; quantity: number }) => ({
         ...item,
         price: priceMap[item.productId] || 100000,
       }));
 
-      const total = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const total = orderItems.reduce((sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity, 0);
 
-      const order = {
+      // DB에 주문 저장
+      await saveOrderToDB({
         orderId,
+        agentId: context.agentId,
         items: orderItems,
         total,
         status: 'confirmed',
-        createdAt: new Date().toISOString(),
-      };
-
-      orders.set(orderId, order);
-      carts.delete(context.agentId); // 장바구니 비우기
+      });
+      
+      // 장바구니 비우기
+      await clearCartInDB(context.agentId);
 
       return {
         success: true,
@@ -264,7 +387,8 @@ const actionHandlers: Record<string, ActionDefinition> = {
         };
       }
 
-      const order = orders.get(orderId);
+      // DB에서 주문 가져오기
+      const order = await getOrderFromDB(orderId);
       if (!order) {
         return {
           success: false,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // 권한 정의
 const PERMISSIONS = [
@@ -19,66 +19,79 @@ const LEVEL_INFO: Record<string, { name: string; color: string; minReputation: n
   admin: { name: '관리자', color: 'bg-red-100 text-red-800', minReputation: 900 },
 };
 
-// 가드레일 규칙
-const GUARDRAIL_RULES = [
-  {
-    id: 'rule-001',
-    name: '주문 금액 제한',
-    description: '단일 주문의 최대 금액을 제한합니다',
-    type: 'limit',
-    config: { maxAmount: 1000000, currency: 'KRW' },
-    enabled: true,
-  },
-  {
-    id: 'rule-002',
-    name: '일일 요청 제한',
-    description: '에이전트당 일일 최대 요청 수를 제한합니다',
-    type: 'rate_limit',
-    config: { maxRequests: 10000, window: '24h' },
-    enabled: true,
-  },
-  {
-    id: 'rule-003',
-    name: '실행 액션 확인 필수',
-    description: 'execute 권한의 액션은 사용자 확인이 필요합니다',
-    type: 'confirmation',
-    config: { requiredFor: ['purchase', 'create_order'] },
-    enabled: true,
-  },
-  {
-    id: 'rule-004',
-    name: '신규 에이전트 제한',
-    description: '평판 점수 100 미만 에이전트의 기능 제한',
-    type: 'reputation',
-    config: { minReputation: 100, restrictedActions: ['cart', 'execute'] },
-    enabled: true,
-  },
-  {
-    id: 'rule-005',
-    name: '샌드박스 우선',
-    description: '위험 액션 실행 전 샌드박스 시뮬레이션 권장',
-    type: 'sandbox',
-    config: { recommendedFor: ['purchase', 'subscribe'] },
-    enabled: false,
-  },
-  {
-    id: 'rule-006',
-    name: '악성 에이전트 차단',
-    description: '블랙리스트 에이전트 자동 차단',
-    type: 'blacklist',
-    config: { autoBlockThreshold: 5 },
-    enabled: true,
-  },
-];
+interface GuardrailRule {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function PermissionsPage() {
   const [activeTab, setActiveTab] = useState<'permissions' | 'guardrails'>('permissions');
-  const [rules, setRules] = useState(GUARDRAIL_RULES);
+  const [rules, setRules] = useState<GuardrailRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
 
-  const toggleRule = (ruleId: string) => {
-    setRules(rules.map(rule => 
-      rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule
+  // 가드레일 규칙 로드
+  useEffect(() => {
+    fetchRules();
+  }, []);
+
+  const fetchRules = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/dashboard/guardrails');
+      const data = await response.json();
+      
+      if (data.success) {
+        setRules(data.data);
+      }
+    } catch (error) {
+      console.error('규칙 조회 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleRule = async (ruleId: string) => {
+    const rule = rules.find(r => r.id === ruleId);
+    if (!rule) return;
+    
+    setSaving(ruleId);
+    
+    // 낙관적 업데이트
+    setRules(rules.map(r => 
+      r.id === ruleId ? { ...r, enabled: !r.enabled } : r
     ));
+    
+    try {
+      const response = await fetch('/api/dashboard/guardrails', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ruleId, enabled: !rule.enabled }),
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        // 실패 시 롤백
+        setRules(rules.map(r => 
+          r.id === ruleId ? { ...r, enabled: rule.enabled } : r
+        ));
+      }
+    } catch (error) {
+      // 에러 시 롤백
+      setRules(rules.map(r => 
+        r.id === ruleId ? { ...r, enabled: rule.enabled } : r
+      ));
+      console.error('규칙 업데이트 실패:', error);
+    } finally {
+      setSaving(null);
+    }
   };
 
   return (
@@ -246,54 +259,62 @@ export default function PermissionsPage() {
                 새 규칙 추가
               </button>
             </div>
-            <div className="divide-y divide-gray-100">
-              {rules.map((rule) => (
-                <div key={rule.id} className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        rule.enabled ? 'bg-agent-100 text-agent-600' : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900">{rule.name}</span>
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                            {rule.type}
-                          </span>
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-agent-500 border-t-transparent rounded-full mx-auto"></div>
+                <p className="mt-2 text-gray-500">로딩 중...</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {rules.map((rule) => (
+                  <div key={rule.id} className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          rule.enabled ? 'bg-agent-100 text-agent-600' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
-                        <div className="mt-2 font-mono text-xs bg-gray-50 p-2 rounded border border-gray-200">
-                          {JSON.stringify(rule.config)}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{rule.name}</span>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                              {rule.type}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
+                          <div className="mt-2 font-mono text-xs bg-gray-50 p-2 rounded border border-gray-200">
+                            {JSON.stringify(rule.config)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => toggleRule(rule.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          rule.enabled ? 'bg-agent-600' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span 
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            rule.enabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-gray-600">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => toggleRule(rule.id)}
+                          disabled={saving === rule.id}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            rule.enabled ? 'bg-agent-600' : 'bg-gray-300'
+                          } ${saving === rule.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span 
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              rule.enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <button className="p-2 text-gray-400 hover:text-gray-600">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

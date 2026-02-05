@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export const runtime = 'edge';
 
 interface ServiceData {
+  id?: string;
   name: string;
   nameKo?: string;
   description: string;
@@ -20,7 +22,12 @@ interface ServiceData {
   authType: string;
   rateLimit: string;
   contactEmail: string;
+  slug?: string;
+  createdAt?: string;
 }
+
+// 메모리 저장소 (DB 미연결 시 폴백)
+const servicesStore = new Map<string, ServiceData & { aiTxt: string; jsonLd: object }>();
 
 // 슬러그 생성 (간단한 버전)
 function generateSlug(name: string): string {
@@ -126,35 +133,57 @@ export async function POST(request: NextRequest) {
     
     // 슬러그 생성
     const slug = generateSlug(serviceData.name);
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const aiTxt = generateAiTxt(serviceData, slug);
+    const jsonLd = generateJsonLd(serviceData, slug);
     
-    // TODO: Supabase에 저장
-    // const { data, error } = await supabase
-    //   .from('services')
-    //   .insert({
-    //     slug,
-    //     name: serviceData.name,
-    //     name_ko: serviceData.nameKo,
-    //     description: serviceData.description,
-    //     description_ko: serviceData.descriptionKo,
-    //     homepage: serviceData.homepage,
-    //     api_base: serviceData.apiBase,
-    //     endpoints: serviceData.endpoints,
-    //     auth_type: serviceData.authType,
-    //     rate_limit: serviceData.rateLimit,
-    //     contact_email: serviceData.contactEmail,
-    //     ai_txt: generateAiTxt(serviceData, slug),
-    //     json_ld: generateJsonLd(serviceData, slug),
-    //     created_at: new Date().toISOString(),
-    //   })
-    //   .select()
-    //   .single();
+    const supabase = getSupabaseClient();
     
-    // 임시: 메모리에 저장 (프로덕션에서는 DB 사용)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    
+    // Supabase에 저장 시도
+    const { data, error } = await sb
+      .from('services')
+      .insert({
+        id,
+        slug,
+        name: serviceData.name,
+        name_ko: serviceData.nameKo,
+        description: serviceData.description,
+        description_ko: serviceData.descriptionKo,
+        homepage: serviceData.homepage,
+        api_base: serviceData.apiBase,
+        endpoints: serviceData.endpoints,
+        auth_type: serviceData.authType,
+        rate_limit: serviceData.rateLimit,
+        contact_email: serviceData.contactEmail,
+        ai_txt: aiTxt,
+        json_ld: jsonLd,
+        created_at: now,
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.warn('DB save failed, using memory store:', error.message);
+      // 메모리에 저장
+      servicesStore.set(id, {
+        ...serviceData,
+        id,
+        slug,
+        createdAt: now,
+        aiTxt,
+        jsonLd,
+      });
+    }
+    
     const result = {
-      id: crypto.randomUUID(),
-      slug,
+      id: data?.id || id,
+      slug: data?.slug || slug,
       name: serviceData.name,
-      createdAt: new Date().toISOString(),
+      createdAt: data?.created_at || now,
       urls: {
         dashboard: `https://eoynx.com/s/${slug}`,
         aiTxt: `https://eoynx.com/s/${slug}/ai.txt`,
@@ -168,8 +197,8 @@ export async function POST(request: NextRequest) {
       slug,
       service: result,
       preview: {
-        aiTxt: generateAiTxt(serviceData, slug),
-        jsonLd: generateJsonLd(serviceData, slug),
+        aiTxt,
+        jsonLd,
       },
     }, {
       status: 201,
@@ -179,19 +208,86 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Service creation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create service' },
+      { 
+        error: 'Failed to create service',
+        details: errorMessage,
+      },
       { status: 500 }
     );
   }
 }
 
 export async function GET(request: NextRequest) {
-  // 사용자의 서비스 목록 조회
-  // TODO: 인증된 사용자의 서비스만 반환
-  
-  return NextResponse.json({
-    services: [],
-    message: 'Service listing will be available with authentication',
-  });
+  try {
+    const { searchParams } = new URL(request.url);
+    const slug = searchParams.get('slug');
+    
+    const supabase = getSupabaseClient();
+    
+    // 특정 slug로 조회
+    if (slug) {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('slug', slug)
+        .single();
+      
+      if (error || !data) {
+        // 메모리에서 조회
+        for (const [, service] of servicesStore) {
+          if (service.slug === slug) {
+            return NextResponse.json({
+              success: true,
+              service,
+            });
+          }
+        }
+        return NextResponse.json(
+          { error: 'Service not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        service: data,
+      });
+    }
+    
+    // 전체 서비스 목록 조회
+    const { data, error } = await supabase
+      .from('services')
+      .select('id, name, description, slug, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    
+    if (error) {
+      console.warn('DB fetch failed, using memory store:', error.message);
+      const allServices = Array.from(servicesStore.values()).map(s => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        slug: s.slug,
+        createdAt: s.createdAt,
+      }));
+      
+      return NextResponse.json({
+        success: true,
+        services: allServices,
+      });
+    }
+    
+    return NextResponse.json({
+      success: true,
+      services: data || [],
+    });
+  } catch (error) {
+    console.error('Service fetch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch services' },
+      { status: 500 }
+    );
+  }
 }
