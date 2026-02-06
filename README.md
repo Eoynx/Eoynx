@@ -301,6 +301,10 @@ npm run test:coverage
 
 ## 📚 문서
 
+### 📖 시작하기
+- [비개발자를 위한 소개](docs/INTRO_FOR_BEGINNERS.md) - Eoynx가 뭔지 쉽게 설명
+
+### 🔧 개발자 가이드
 - [API 가이드](docs/API_GUIDE.md) - 상세 API 레퍼런스
 - [MCP 가이드](docs/MCP_GUIDE.md) - Model Context Protocol 통합
 - [Cloudflare Edge 가이드](docs/CLOUDFLARE_EDGE_GUIDE.md) - Edge Gateway 설정 및 배포
