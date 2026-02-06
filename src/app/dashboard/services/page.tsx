@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardIcon } from '@/components/brand/FeatureIcons';
 
@@ -88,7 +88,7 @@ const initialServiceData: ServiceData = {
   contactEmail: '',
 };
 
-export default function ServicesPage() {
+function ServicesContent() {
   const searchParams = useSearchParams();
   const [serviceData, setServiceData] = useState<ServiceData>(initialServiceData);
   const [previewMode, setPreviewMode] = useState<'ai.txt' | 'llms.txt' | 'json-ld'>('ai.txt');
@@ -1473,5 +1473,17 @@ Generated via https://eoynx.com`;
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-onyx-950 via-onyx-900 to-onyx-950 p-8 flex items-center justify-center">
+        <div className="text-onyx-400">로딩 중...</div>
+      </div>
+    }>
+      <ServicesContent />
+    </Suspense>
   );
 }
