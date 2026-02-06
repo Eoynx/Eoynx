@@ -7,8 +7,12 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     
-    // Supabase 세션 로그아웃
-    await supabase.auth.signOut();
+    // Supabase 세션 로그아웃 (에러 무시)
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // 무시
+    }
 
     // 쿠키 삭제 후 로그인 페이지로 리다이렉트
     const response = NextResponse.json({
@@ -17,6 +21,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 모든 인증 쿠키 삭제
+    response.cookies.delete('session');
     response.cookies.delete('auth-token');
     response.cookies.delete('sb-access-token');
     response.cookies.delete('sb-refresh-token');
@@ -35,13 +40,18 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     
-    // Supabase 세션 로그아웃
-    await supabase.auth.signOut();
+    // Supabase 세션 로그아웃 (에러 무시)
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // 무시
+    }
 
     // 쿠키 삭제 후 로그인 페이지로 리다이렉트
     const response = NextResponse.redirect(new URL('/login', request.url));
 
     // 모든 인증 쿠키 삭제
+    response.cookies.delete('session');
     response.cookies.delete('auth-token');
     response.cookies.delete('sb-access-token');
     response.cookies.delete('sb-refresh-token');

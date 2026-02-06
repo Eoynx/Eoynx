@@ -6,6 +6,7 @@
 # Documentation: https://eoynx.com/docs
 # LLMs.txt: https://eoynx.com/llms.txt
 # AI.txt: https://eoynx.com/ai.txt
+# AI Sitemap: https://eoynx.com/ai-sitemap.xml
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -18,10 +19,14 @@ Allow: /api/agent/health
 Allow: /api/agent/mcp
 Allow: /llms.txt
 Allow: /ai.txt
+Allow: /ai-sitemap.xml
 Disallow: /api/admin
 Disallow: /dashboard
 Disallow: /_next/static/
 Crawl-delay: 1
+
+Sitemap: https://eoynx.com/sitemap.xml
+Sitemap: https://eoynx.com/ai-sitemap.xml
 
 # -----------------------------------------------------------------------------
 # AI Agent Bots - Welcome! (No rate limiting for AI agents)

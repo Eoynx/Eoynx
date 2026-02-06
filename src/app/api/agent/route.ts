@@ -184,7 +184,20 @@ export async function GET(request: NextRequest) {
           method: a.method,
         })),
       }, {
-        headers: getResponseHeaders(requestId, startTime),
+        headers: getResponseHeaders(requestId, startTime, 'application/json; charset=utf-8'),
+      });
+    }
+
+    if (format === 'compact') {
+      return NextResponse.json(toCompactResponse(response), {
+        headers: getResponseHeaders(requestId, startTime, 'application/json; charset=utf-8'),
+      });
+    }
+
+    if (format === 'markdown' || format === 'md') {
+      const markdown = toCompactMarkdown(response);
+      return new NextResponse(markdown, {
+        headers: getResponseHeaders(requestId, startTime, 'text/markdown; charset=utf-8'),
       });
     }
 
@@ -328,14 +341,65 @@ export async function OPTIONS() {
 // Helper Functions
 // ============================================
 
-function getResponseHeaders(requestId: string, startTime: number): HeadersInit {
+function getResponseHeaders(requestId: string, startTime: number, contentType = 'application/ld+json; charset=utf-8'): HeadersInit {
   return {
-    'Content-Type': 'application/ld+json',
+    'Content-Type': contentType,
     'X-Gateway-Version': '1.0.0',
     'X-Request-ID': requestId,
     'X-Response-Time': `${Date.now() - startTime}ms`,
+    'X-Agent-Optimized': 'true',
+    'X-Oracle-Source': 'eoynx',
+    'X-Oracle-Trust': 'verified',
+    'X-Oracle-Formats': 'json-ld,compact,markdown',
     'Cache-Control': 'public, max-age=60',
   };
+}
+
+function toCompactResponse(response: AgentGatewayResponse) {
+  return {
+    v: response.gateway?.version,
+    t: response.gateway?.timestamp,
+    ctx: {
+      name: response.siteContext?.name,
+      url: response.siteContext?.url,
+      desc: response.siteContext?.description,
+      lang: response.siteContext?.primaryLanguage,
+      categories: response.siteContext?.categories,
+    },
+    actions: response.availableActions.map((a) => ({
+      type: a.type,
+      name: a.name,
+      endpoint: a.endpoint,
+      method: a.method,
+      permission: a.requiredPermission,
+    })),
+    briefing: response.contextBriefing?.summary,
+  };
+}
+
+function toCompactMarkdown(response: AgentGatewayResponse): string {
+  const lines: string[] = [];
+  lines.push(`# ${response.siteContext?.name || 'Agent Gateway'}`);
+  if (response.siteContext?.description) {
+    lines.push(response.siteContext.description);
+  }
+  lines.push('');
+  lines.push(`- URL: ${response.siteContext?.url || ''}`);
+  lines.push(`- Language: ${response.siteContext?.primaryLanguage || ''}`);
+  if (response.siteContext?.categories?.length) {
+    lines.push(`- Categories: ${response.siteContext.categories.join(', ')}`);
+  }
+  lines.push('');
+  if (response.contextBriefing?.summary) {
+    lines.push('## Briefing');
+    lines.push(response.contextBriefing.summary);
+    lines.push('');
+  }
+  lines.push('## Actions');
+  response.availableActions.forEach((a) => {
+    lines.push(`- ${a.name}: ${a.method} ${a.endpoint} (${a.requiredPermission})`);
+  });
+  return lines.join('\n');
 }
 
 function getAgentPermissions(agentId: string): string[] {

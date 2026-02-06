@@ -233,7 +233,7 @@ HTML 크롤링 없이 JSON 기반 API를 통해 모든 기능에 접근할 수 �
             required: false,
             description: '응답 형식',
             default: 'full',
-            enum: ['full', 'minimal'],
+            enum: ['full', 'minimal', 'compact', 'markdown'],
           },
           {
             name: 'includePrompt',

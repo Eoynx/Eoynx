@@ -30,6 +30,25 @@ interface ServiceData {
   created_at: string;
 }
 
+interface ProductPageConfig {
+  urlPattern?: string;
+  sampleUrl?: string;
+  dataSource?: string;
+  selectors?: {
+    title?: string;
+    price?: string;
+    currency?: string;
+    image?: string;
+    description?: string;
+    sku?: string;
+    brand?: string;
+    availability?: string;
+    rating?: string;
+    reviewCount?: string;
+  };
+  notes?: string;
+}
+
 export default function ServicePage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -195,6 +214,113 @@ export default function ServicePage() {
                 ))}
               </div>
             </div>
+
+            {/* 상품 페이지 파싱 정보 */}
+            {(() => {
+              const jsonLd = service.json_ld as Record<string, unknown> | undefined;
+              const additional = (jsonLd?.additionalProperty as Array<Record<string, unknown>>) || [];
+              const productProperty = additional.find((item) => item?.name === 'productPage');
+              const productPage = (productProperty?.value as ProductPageConfig | undefined) || undefined;
+
+              if (!productPage) return null;
+
+              const selectors = productPage.selectors || {};
+
+              return (
+                <div className="bg-onyx-900/50 border border-onyx-800 rounded-xl p-6">
+                  <h2 className="text-lg font-semibold text-onyx-100 mb-4">상품 페이지 파싱 정보</h2>
+                  <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {productPage.urlPattern && (
+                      <div>
+                        <dt className="text-sm text-onyx-500">URL 패턴</dt>
+                        <dd className="text-onyx-200 font-mono text-sm">{productPage.urlPattern}</dd>
+                      </div>
+                    )}
+                    {productPage.sampleUrl && (
+                      <div>
+                        <dt className="text-sm text-onyx-500">예시 URL</dt>
+                        <dd className="text-dawn-400 text-sm break-all">{productPage.sampleUrl}</dd>
+                      </div>
+                    )}
+                    {productPage.dataSource && (
+                      <div>
+                        <dt className="text-sm text-onyx-500">데이터 소스</dt>
+                        <dd className="text-onyx-200 text-sm">{productPage.dataSource}</dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {selectors.title && (
+                      <div>
+                        <span className="text-onyx-500">상품명</span>
+                        <div className="text-onyx-200 font-mono">{selectors.title}</div>
+                      </div>
+                    )}
+                    {selectors.price && (
+                      <div>
+                        <span className="text-onyx-500">가격</span>
+                        <div className="text-onyx-200 font-mono">{selectors.price}</div>
+                      </div>
+                    )}
+                    {selectors.currency && (
+                      <div>
+                        <span className="text-onyx-500">통화</span>
+                        <div className="text-onyx-200 font-mono">{selectors.currency}</div>
+                      </div>
+                    )}
+                    {selectors.image && (
+                      <div>
+                        <span className="text-onyx-500">이미지</span>
+                        <div className="text-onyx-200 font-mono">{selectors.image}</div>
+                      </div>
+                    )}
+                    {selectors.description && (
+                      <div>
+                        <span className="text-onyx-500">설명</span>
+                        <div className="text-onyx-200 font-mono">{selectors.description}</div>
+                      </div>
+                    )}
+                    {selectors.sku && (
+                      <div>
+                        <span className="text-onyx-500">SKU</span>
+                        <div className="text-onyx-200 font-mono">{selectors.sku}</div>
+                      </div>
+                    )}
+                    {selectors.brand && (
+                      <div>
+                        <span className="text-onyx-500">브랜드</span>
+                        <div className="text-onyx-200 font-mono">{selectors.brand}</div>
+                      </div>
+                    )}
+                    {selectors.availability && (
+                      <div>
+                        <span className="text-onyx-500">재고 상태</span>
+                        <div className="text-onyx-200 font-mono">{selectors.availability}</div>
+                      </div>
+                    )}
+                    {selectors.rating && (
+                      <div>
+                        <span className="text-onyx-500">평점</span>
+                        <div className="text-onyx-200 font-mono">{selectors.rating}</div>
+                      </div>
+                    )}
+                    {selectors.reviewCount && (
+                      <div>
+                        <span className="text-onyx-500">리뷰 수</span>
+                        <div className="text-onyx-200 font-mono">{selectors.reviewCount}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {productPage.notes && (
+                    <div className="mt-5 text-sm text-onyx-300">
+                      <span className="text-onyx-500">메모:</span> {productPage.notes}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 

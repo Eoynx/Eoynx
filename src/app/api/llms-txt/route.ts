@@ -55,6 +55,18 @@ Accept: application/json
 Response: JSON-LD structured data about the site
 \`\`\`
 
+### Token-Saving Formats
+\`\`\`
+GET ${siteUrl}/api/agent?format=compact
+GET ${siteUrl}/api/agent?format=markdown
+\`\`\`
+
+### MCP (Model Context Protocol)
+\`\`\`
+GET ${siteUrl}/.well-known/mcp.json
+POST ${siteUrl}/api/agent/mcp
+\`\`\`
+
 ### Search
 \`\`\`
 GET ${siteUrl}/api/agent/search?q={query}

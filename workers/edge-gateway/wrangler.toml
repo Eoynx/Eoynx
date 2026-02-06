@@ -1,0 +1,20 @@
+name = "eoynx-edge-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-02-05"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+	"https://api.eoynx.com/*",
+	"https://mcp.eoynx.com/*"
+]
+
+[vars]
+ENVIRONMENT = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "eoynx"
+database_id = "f3a5c45f-279a-4d3b-8c2a-a1786449591e"
+
+[browser]
+binding = "BROWSER"

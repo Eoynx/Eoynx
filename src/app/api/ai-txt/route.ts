@@ -88,11 +88,31 @@ Description: 사이트의 구조화된 데이터를 JSON-LD 형식으로 반환�
 Auth: Optional
 Response: application/json (JSON-LD)
 
+## 1-1. 토큰 절약 포맷 (Compact)
+Endpoint: GET ${siteUrl}/api/agent?format=compact
+Description: 필드 중심의 압축 JSON 응답을 반환합니다.
+Auth: Optional
+
+## 1-2. 토큰 절약 포맷 (Markdown)
+Endpoint: GET ${siteUrl}/api/agent?format=markdown
+Description: 압축된 마크다운 응답을 반환합니다.
+Auth: Optional
+
 ## 2. 헬스 체크 (Health Check)
 Endpoint: GET ${siteUrl}/api/agent/health
 Description: 게이트웨이 및 연결된 서비스의 상태를 확인합니다.
 Auth: Not Required
 Response: {"status": "healthy", "services": {...}}
+
+## 2-1. MCP 메타데이터
+Endpoint: GET ${siteUrl}/.well-known/mcp.json
+Description: MCP 서버 메타데이터를 제공합니다.
+Auth: Not Required
+
+## 2-2. MCP JSON-RPC
+Endpoint: POST ${siteUrl}/api/agent/mcp
+Description: MCP 도구 호출을 위한 JSON-RPC 엔드포인트
+Auth: Optional
 
 ## 3. 검색 (Search)
 Endpoint: GET ${siteUrl}/api/agent/search

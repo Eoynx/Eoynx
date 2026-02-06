@@ -9,7 +9,8 @@ const JWT_SECRET = new TextEncoder().encode(
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
+    // session 쿠키 먼저 확인 (OAuth 로그인), 없으면 auth-token 확인 (이메일 로그인)
+    const token = request.cookies.get('session')?.value || request.cookies.get('auth-token')?.value;
 
     if (!token) {
       return NextResponse.json(

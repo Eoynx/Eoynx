@@ -91,7 +91,16 @@ export async function GET(request: NextRequest) {
     // 대시보드로 리다이렉트하면서 쿠키 설정
     const response = NextResponse.redirect(new URL('/dashboard', request.url));
 
-    // HTTP-only 쿠키로 토큰 저장
+    // HTTP-only 쿠키로 토큰 저장 (session 쿠키 사용)
+    response.cookies.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24시간
+      path: '/',
+    });
+
+    // 이전 호환을 위해 auth-token도 함께 설정
     response.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

@@ -116,7 +116,8 @@ export async function middleware(request: NextRequest) {
 
   // 로그인/회원가입/데모 페이지 및 인증 API는 인증 없이 접근 가능
   if (!isLoginPage && !isSignupPage && !isDemoPage && !isAuthAPI && isDashboardRoute) {
-    const authToken = request.cookies.get('auth-token')?.value;
+    const authToken = request.cookies.get('session')?.value
+      || request.cookies.get('auth-token')?.value;
     
     if (!authToken) {
       // 인증 토큰이 없으면 로그인 페이지로 리다이렉트
@@ -132,6 +133,7 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete('session');
       response.cookies.delete('auth-token');
       return response;
     }
@@ -150,6 +152,13 @@ export async function middleware(request: NextRequest) {
     // AI 봇에게 JSON-LD 데이터 직접 제공
     const response = await createAIBotResponse(request, pathname);
     return response;
+  }
+
+  // AI 봇이 서비스 상세 페이지에 접근하면 ai.txt로 리라이트
+  if (isAIBot && pathname.startsWith('/s/') && !pathname.endsWith('/ai.txt') && !pathname.endsWith('/json-ld')) {
+    const url = request.nextUrl.clone();
+    url.pathname = `${pathname}/ai.txt`;
+    return NextResponse.rewrite(url);
   }
 
   // 2. 악성 봇 차단
@@ -197,6 +206,15 @@ export async function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   });
+
+    // AI 에이전트 전용 시그널링 헤더
+    if (isAIBot) {
+      response.headers.set('X-Agent-Optimized', 'true');
+      response.headers.set('X-Oracle-Source', 'eoynx');
+      response.headers.set('X-Oracle-Trust', 'verified');
+      response.headers.set('X-Oracle-Formats', 'json-ld,compact,markdown');
+      response.headers.set('X-Oracle-MCP', `${request.nextUrl.origin}/api/agent/mcp`);
+    }
 
   // 7. 응답 헤더 추가
   response.headers.set('X-Gateway-Version', '1.0.0');

@@ -70,7 +70,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // HTTP-only 쿠키로 토큰 저장
+    // HTTP-only 쿠키로 토큰 저장 (session 쿠키 사용)
+    response.cookies.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24시간
+      path: '/',
+    });
+
+    // 이전 호환을 위해 auth-token도 함께 설정
     response.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

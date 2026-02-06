@@ -7,8 +7,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { load } from 'cheerio';
+import { getSupabaseAdmin } from '@/lib/supabase/client';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 // MCP 프로토콜 버전
 const MCP_VERSION = '2024-11-05';
@@ -168,6 +170,153 @@ const RESOURCES: McpResource[] = [
   },
 ];
 
+const SERVICE_TOOL_PREFIX = 'parse_service_';
+
+function extractProductPage(jsonLd: unknown): Record<string, unknown> | null {
+  if (!jsonLd || typeof jsonLd !== 'object') return null;
+  const additional = (jsonLd as Record<string, unknown>).additionalProperty;
+  if (!Array.isArray(additional)) return null;
+  const productProperty = additional.find((item) => (item as Record<string, unknown>)?.name === 'productPage');
+  const value = (productProperty as Record<string, unknown> | undefined)?.value;
+  if (value && typeof value === 'object') return value as Record<string, unknown>;
+  return null;
+}
+
+async function getServiceTools(): Promise<McpTool[]> {
+  const supabase = getSupabaseAdmin();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+
+  const { data, error } = await sb
+    .from('services')
+    .select('slug, name, description, json_ld')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return data.map((service: Record<string, unknown>) => {
+    const slug = service.slug as string;
+    const name = (service.name as string) || slug;
+    const description = (service.description as string) || '서비스 상품 페이지 파싱';
+    const productPage = extractProductPage(service.json_ld);
+
+    return {
+      name: `${SERVICE_TOOL_PREFIX}${slug}`,
+      description: `${name}: ${description}`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '상품 페이지 URL' },
+          mode: { type: 'string', description: '파싱 모드', enum: ['auto', 'json-ld', 'dom'] },
+        },
+        required: ['url'],
+      },
+      ...(productPage ? {} : {}),
+    };
+  });
+}
+
+async function fetchServiceBySlug(slug: string): Promise<Record<string, unknown> | null> {
+  const supabase = getSupabaseAdmin();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data, error } = await sb
+    .from('services')
+    .select('slug, name, description, json_ld')
+    .eq('slug', slug)
+    .single();
+  if (error || !data) return null;
+  return data as Record<string, unknown>;
+}
+
+function extractJsonLdProduct(html: string): Record<string, unknown> | null {
+  const $ = load(html);
+  const scripts = $('script[type="application/ld+json"]').toArray();
+  for (const el of scripts) {
+    try {
+      const parsed = JSON.parse($(el).text());
+      const blocks = Array.isArray(parsed) ? parsed : [parsed];
+      for (const block of blocks) {
+        const type = block?.['@type'];
+        if (Array.isArray(type) ? type.includes('Product') : type === 'Product') {
+          return block as Record<string, unknown>;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function selectText($: ReturnType<typeof load>, selector: string): string | null {
+  if (!selector) return null;
+  const el = $(selector).first();
+  return el.length ? el.text().trim() : null;
+}
+
+function selectAttr($: ReturnType<typeof load>, selector: string, attr: string): string | null {
+  if (!selector) return null;
+  const el = $(selector).first();
+  return el.length ? (el.attr(attr) || null) : null;
+}
+
+async function parseProductPage(
+  url: string,
+  productPage: Record<string, unknown> | null,
+  mode: 'auto' | 'json-ld' | 'dom'
+) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Eoynx-MCP/1.0 (+https://eoynx.com)',
+      'Accept': 'text/html,application/xhtml+xml',
+    },
+  });
+
+  if (!response.ok) {
+    return { error: 'Failed to fetch page', status: response.status };
+  }
+
+  const html = await response.text();
+  const parsedMode = mode === 'auto' ? (productPage?.dataSource as string || 'dom') : mode;
+
+  if (parsedMode === 'json-ld') {
+    const product = extractJsonLdProduct(html);
+    if (!product) return { error: 'JSON-LD product not found' };
+
+    return {
+      source: 'json-ld',
+      name: product.name,
+      description: product.description,
+      image: product.image,
+      sku: product.sku,
+      brand: (product.brand as Record<string, unknown>)?.name || product.brand,
+      offers: product.offers,
+      aggregateRating: product.aggregateRating,
+      url,
+    };
+  }
+
+  const $ = load(html);
+  const selectors = (productPage?.selectors as Record<string, string>) || {};
+
+  return {
+    source: 'dom',
+    name: selectText($, selectors.title),
+    price: selectText($, selectors.price),
+    currency: selectText($, selectors.currency),
+    image: selectAttr($, selectors.image, 'src'),
+    description: selectText($, selectors.description),
+    sku: selectText($, selectors.sku),
+    brand: selectText($, selectors.brand),
+    availability: selectText($, selectors.availability),
+    rating: selectText($, selectors.rating),
+    reviewCount: selectText($, selectors.reviewCount),
+    url,
+  };
+}
+
 // 샘플 데이터
 const SAMPLE_PRODUCTS = [
   { id: 'prod-001', name: '프리미엄 노트북 Pro 16', price: 2490000, category: 'electronics', stock: 45 },
@@ -186,10 +335,21 @@ const carts = new Map<string, { productId: string; quantity: number }[]>();
 export async function POST(request: NextRequest) {
   try {
     const body: JsonRpcRequest | JsonRpcRequest[] = await request.json();
+    const acceptsSSE = (request.headers.get('accept') || '').includes('text/event-stream');
     
     // 배치 요청 처리
     if (Array.isArray(body)) {
       const responses = await Promise.all(body.map(req => handleRequest(req, request)));
+      if (acceptsSSE) {
+        const payload = `event: message\ndata: ${JSON.stringify(responses)}\n\n`;
+        return new NextResponse(payload, {
+          headers: {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+          },
+        });
+      }
       return NextResponse.json(responses, {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -197,6 +357,16 @@ export async function POST(request: NextRequest) {
     
     // 단일 요청 처리
     const response = await handleRequest(body, request);
+    if (acceptsSSE) {
+      const payload = `event: message\ndata: ${JSON.stringify(response)}\n\n`;
+      return new NextResponse(payload, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
     return NextResponse.json(response, {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -257,9 +427,16 @@ async function handleRequest(
 
       // ========== 도구 관련 ==========
       case 'tools/list':
-        return createResult(id, { tools: TOOLS });
+        return createResult(id, { tools: [...(await getServiceTools()), ...TOOLS] });
 
       case 'tools/call':
+        if ((params.name as string)?.startsWith(SERVICE_TOOL_PREFIX)) {
+          const toolResult = await executeServiceTool(
+            params.name as string,
+            params.arguments as Record<string, unknown>
+          );
+          return createResult(id, toolResult);
+        }
         const toolResult = await executeTool(
           params.name as string,
           params.arguments as Record<string, unknown>,
@@ -322,6 +499,10 @@ async function executeTool(
   args: Record<string, unknown>,
   agentId: string
 ): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+  if (toolName.startsWith(SERVICE_TOOL_PREFIX)) {
+    return executeServiceTool(toolName, args);
+  }
+
   switch (toolName) {
     case 'search_products': {
       const query = (args.query as string || '').toLowerCase();
@@ -523,6 +704,47 @@ async function executeTool(
         isError: true,
       };
   }
+}
+
+async function executeServiceTool(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+  const slug = toolName.replace(SERVICE_TOOL_PREFIX, '');
+  const url = args.url as string | undefined;
+  const mode = (args.mode as 'auto' | 'json-ld' | 'dom' | undefined) || 'auto';
+
+  if (!url) {
+    return {
+      content: [{ type: 'text', text: 'URL 파라미터가 필요합니다.' }],
+      isError: true,
+    };
+  }
+
+  const service = await fetchServiceBySlug(slug);
+  if (!service) {
+    return {
+      content: [{ type: 'text', text: `서비스를 찾을 수 없습니다: ${slug}` }],
+      isError: true,
+    };
+  }
+
+  const productPage = extractProductPage(service.json_ld);
+  const result = await parseProductPage(url, productPage, mode);
+
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify({
+        service: {
+          slug: service.slug,
+          name: service.name,
+        },
+        result,
+      }, null, 2),
+    }],
+    isError: Boolean((result as { error?: string }).error),
+  };
 }
 
 /**

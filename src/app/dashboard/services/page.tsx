@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { DashboardIcon, KeyIcon, ShieldIcon } from '@/components/brand/FeatureIcons';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { DashboardIcon, KeyIcon, ShieldIcon, RefreshIcon, FolderIcon, LockIcon, BoltIcon } from '@/components/brand/FeatureIcons';
 
 interface ServiceData {
   name: string;
@@ -10,10 +11,32 @@ interface ServiceData {
   descriptionKo: string;
   homepage: string;
   apiBase: string;
+  productPage: ProductPageConfig;
   endpoints: EndpointConfig[];
   authType: 'none' | 'api_key' | 'jwt' | 'oauth2';
   rateLimit: string;
   contactEmail: string;
+}
+
+interface ProductPageSelectors {
+  title: string;
+  price: string;
+  currency: string;
+  image: string;
+  description: string;
+  sku: string;
+  brand: string;
+  availability: string;
+  rating: string;
+  reviewCount: string;
+}
+
+interface ProductPageConfig {
+  urlPattern: string;
+  sampleUrl: string;
+  dataSource: 'json-ld' | 'meta' | 'dom' | 'api';
+  selectors: ProductPageSelectors;
+  notes: string;
 }
 
 interface EndpointConfig {
@@ -41,6 +64,24 @@ const initialServiceData: ServiceData = {
   descriptionKo: '',
   homepage: '',
   apiBase: '',
+  productPage: {
+    urlPattern: '',
+    sampleUrl: '',
+    dataSource: 'json-ld',
+    selectors: {
+      title: '',
+      price: '',
+      currency: '',
+      image: '',
+      description: '',
+      sku: '',
+      brand: '',
+      availability: '',
+      rating: '',
+      reviewCount: '',
+    },
+    notes: '',
+  },
   endpoints: [{ ...defaultEndpoint }],
   authType: 'none',
   rateLimit: '100/min',
@@ -48,13 +89,241 @@ const initialServiceData: ServiceData = {
 };
 
 export default function ServicesPage() {
+  const searchParams = useSearchParams();
   const [serviceData, setServiceData] = useState<ServiceData>(initialServiceData);
   const [previewMode, setPreviewMode] = useState<'ai.txt' | 'llms.txt' | 'json-ld'>('ai.txt');
   const [isSaving, setIsSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [showAdvancedProduct, setShowAdvancedProduct] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoadingService, setIsLoadingService] = useState(false);
+  const [autoUrl, setAutoUrl] = useState('');
+  const [isAutoLoading, setIsAutoLoading] = useState(false);
+  const [autoError, setAutoError] = useState<string | null>(null);
+  const [isDetectingSelectors, setIsDetectingSelectors] = useState(false);
+  const [detectError, setDetectError] = useState<string | null>(null);
+  const [sampleResult, setSampleResult] = useState<{ title?: string | null; description?: string | null; price?: string | null; image?: string | null } | null>(null);
+  const [isSampleLoading, setIsSampleLoading] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  const [relatedLinks, setRelatedLinks] = useState<string[]>([]);
+  const [isRelatedLoading, setIsRelatedLoading] = useState(false);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
+  const [relatedItems, setRelatedItems] = useState<Array<{ url: string; title?: string | null; price?: string | null; image?: string | null }>>([]);
+  const [isRelatedParsing, setIsRelatedParsing] = useState(false);
+  const [relatedParseError, setRelatedParseError] = useState<string | null>(null);
+  const [relatedLimit, setRelatedLimit] = useState(3);
+  const [userRole, setUserRole] = useState<'free' | 'pro' | 'admin'>('free');
+  const [relatedSortBy, setRelatedSortBy] = useState<'none' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc'>('none');
+  const [relatedRemoveDuplicates, setRelatedRemoveDuplicates] = useState(true);
+  const [cachedResults, setCachedResults] = useState<Array<{ key: string; url: string; timestamp: number; items: typeof relatedItems }>>([]);
+  const [showCachedResults, setShowCachedResults] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeError, setOptimizeError] = useState<string | null>(null);
+  const [selectorRecommendations, setSelectorRecommendations] = useState<{
+    title?: Array<{ selector: string; score: number; sampleValue?: string }>;
+    price?: Array<{ selector: string; score: number; sampleValue?: string }>;
+    image?: Array<{ selector: string; score: number; sampleValue?: string }>;
+  } | null>(null);
+
+  // localStorage 캐시 키 생성
+  const getCacheKey = (url: string) => {
+    return `related-parse-${btoa(url).slice(0, 20)}`;
+  };
+
+  // 캐시 저장
+  const saveToCache = (url: string, items: typeof relatedItems) => {
+    try {
+      const cacheKey = getCacheKey(url);
+      const cacheData = {
+        url,
+        timestamp: Date.now(),
+        items,
+        sortBy: relatedSortBy,
+        limit: relatedLimit,
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      loadCachedResults();
+    } catch {
+      // localStorage 오류 무시
+    }
+  };
+
+  // 캐시 불러오기
+  const loadFromCache = (url: string) => {
+    try {
+      const cacheKey = getCacheKey(url);
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const data = JSON.parse(cached);
+        // 24시간 이내 캐시만 유효
+        if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+          return data;
+        }
+        localStorage.removeItem(cacheKey);
+      }
+    } catch {
+      // localStorage 오류 무시
+    }
+    return null;
+  };
+
+  // 모든 캐시 결과 불러오기
+  const loadCachedResults = () => {
+    try {
+      const results: typeof cachedResults = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('related-parse-')) {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const data = JSON.parse(cached);
+            // 24시간 이내 캐시만 표시
+            if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+              results.push({ key, ...data });
+            } else {
+              localStorage.removeItem(key);
+            }
+          }
+        }
+      }
+      setCachedResults(results.sort((a, b) => b.timestamp - a.timestamp));
+    } catch {
+      // localStorage 오류 무시
+    }
+  };
+
+  // 캐시 삭제
+  const deleteFromCache = (key: string) => {
+    try {
+      localStorage.removeItem(key);
+      loadCachedResults();
+    } catch {
+      // localStorage 오류 무시
+    }
+  };
+
+  // 캐시에서 복원
+  const restoreFromCache = (cached: typeof cachedResults[0]) => {
+    setRelatedItems(cached.items);
+  };
+
+  // 셀렉터 최적화
+  const handleOptimizeSelectors = async () => {
+    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
+    if (!targetUrl) {
+      setOptimizeError('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    if (relatedItems.length === 0) {
+      setOptimizeError('먼저 관련 상품 파싱을 실행해주세요.');
+      return;
+    }
+
+    setOptimizeError(null);
+    setIsOptimizing(true);
+    setSelectorRecommendations(null);
+
+    try {
+      const response = await fetch('/api/services/selectors/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: targetUrl,
+          parsedItems: relatedItems,
+          currentSelectors: serviceData.productPage.selectors,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setOptimizeError(data?.error || '셀렉터 최적화에 실패했습니다.');
+        return;
+      }
+
+      setSelectorRecommendations(data.recommendations);
+    } catch {
+      setOptimizeError('셀렉터 최적화에 실패했습니다.');
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  // 추천 셀렉터 적용
+  const applyRecommendedSelector = (field: keyof ProductPageSelectors, selector: string) => {
+    updateProductSelector(field, selector);
+  };
+
+  // 컴포넌트 마운트 시 캐시 로드
+  useEffect(() => {
+    loadCachedResults();
+  }, []);
 
   const updateField = <K extends keyof ServiceData>(field: K, value: ServiceData[K]) => {
     setServiceData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateProductPageField = <K extends keyof ProductPageConfig>(field: K, value: ProductPageConfig[K]) => {
+    setServiceData(prev => ({
+      ...prev,
+      productPage: {
+        ...prev.productPage,
+        [field]: value,
+      },
+    }));
+  };
+
+  const updateProductSelector = <K extends keyof ProductPageSelectors>(field: K, value: ProductPageSelectors[K]) => {
+    setServiceData(prev => ({
+      ...prev,
+      productPage: {
+        ...prev.productPage,
+        selectors: {
+          ...prev.productPage.selectors,
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const applyProductPreset = (preset: 'json-ld' | 'dom') => {
+    const selectors = preset === 'json-ld'
+      ? {
+          title: 'jsonld.name',
+          price: 'jsonld.offers.price',
+          currency: 'jsonld.offers.priceCurrency',
+          image: 'jsonld.image',
+          description: 'jsonld.description',
+          sku: 'jsonld.sku',
+          brand: 'jsonld.brand.name',
+          availability: 'jsonld.offers.availability',
+          rating: 'jsonld.aggregateRating.ratingValue',
+          reviewCount: 'jsonld.aggregateRating.reviewCount',
+        }
+      : {
+          title: 'h1',
+          price: '[itemprop=price], .price',
+          currency: '[itemprop=priceCurrency]',
+          image: 'img[itemprop=image], .product-image img',
+          description: '[itemprop=description], .product-description',
+          sku: '[itemprop=sku], .sku',
+          brand: '[itemprop=brand], .brand',
+          availability: '[itemprop=availability], .availability',
+          rating: '[itemprop=ratingValue], .rating',
+          reviewCount: '[itemprop=reviewCount], .review-count',
+        };
+
+    setServiceData(prev => ({
+      ...prev,
+      productPage: {
+        ...prev.productPage,
+        dataSource: preset,
+        selectors: {
+          ...prev.productPage.selectors,
+          ...selectors,
+        },
+      },
+    }));
   };
 
   const addEndpoint = () => {
@@ -81,18 +350,26 @@ export default function ServicesPage() {
   };
 
   const generatePreview = (): string => {
-    const { name, nameKo, description, descriptionKo, homepage, apiBase, endpoints, authType, rateLimit, contactEmail } = serviceData;
+    const { name, nameKo, description, descriptionKo, homepage, apiBase, endpoints, authType, rateLimit, contactEmail, productPage } = serviceData;
+    const displayName = name || nameKo || 'Your Service Name';
+    const displayDescription = description || descriptionKo || 'Your service description';
+    const hasProductInfo = Boolean(
+      productPage.urlPattern
+      || productPage.sampleUrl
+      || productPage.notes
+      || Object.values(productPage.selectors).some(Boolean)
+    );
     
     if (previewMode === 'ai.txt') {
       return `# =============================================================================
-# ${name || 'Your Service'} AI Interaction Specification (ai.txt)
+# ${displayName} AI Interaction Specification (ai.txt)
 # Generated by Eoynx Agent Gateway
 # =============================================================================
 
 [System.Context]
-Name: ${name || 'Your Service Name'}
+Name: ${displayName}
 ${nameKo ? `Name_KO: ${nameKo}` : ''}
-Description: ${description || 'Your service description'}
+Description: ${displayDescription}
 ${descriptionKo ? `Description_KO: ${descriptionKo}` : ''}
 Homepage: ${homepage || 'https://your-domain.com'}
 Contact: ${contactEmail || 'support@your-domain.com'}
@@ -114,16 +391,35 @@ ${authType !== 'none' ? `Header: ${authType === 'api_key' ? 'X-API-Key' : 'Autho
 [Rate.Limits]
 Default: ${rateLimit}
 
+${hasProductInfo ? `
+[Product.Page]
+URL_Pattern: ${productPage.urlPattern}
+Sample_URL: ${productPage.sampleUrl}
+Data_Source: ${productPage.dataSource}
+Selectors:
+  Title: ${productPage.selectors.title}
+  Price: ${productPage.selectors.price}
+  Currency: ${productPage.selectors.currency}
+  Image: ${productPage.selectors.image}
+  Description: ${productPage.selectors.description}
+  SKU: ${productPage.selectors.sku}
+  Brand: ${productPage.selectors.brand}
+  Availability: ${productPage.selectors.availability}
+  Rating: ${productPage.selectors.rating}
+  ReviewCount: ${productPage.selectors.reviewCount}
+${productPage.notes ? `Notes: ${productPage.notes}` : ''}
+` : ''}
+
 # Generated via https://eoynx.com
 # Powered by Eoynx Agent Gateway`;
     }
     
     if (previewMode === 'llms.txt') {
-      return `# ${name || 'Your Service'} - AI Agent Instructions
+      return `# ${displayName} - AI Agent Instructions
 # Generated by Eoynx
 
 ## About
-${description || 'Your service description'}
+${displayDescription}
 
 ## API Base URL
 ${apiBase || 'https://your-domain.com/api'}
@@ -144,6 +440,26 @@ ${authType === 'none' ? 'No authentication required.' :
 ## Rate Limits
 ${rateLimit}
 
+${hasProductInfo ? `## Product Page Parsing
+URL Pattern: ${productPage.urlPattern}
+Sample URL: ${productPage.sampleUrl}
+Data Source: ${productPage.dataSource}
+
+Selectors:
+- Title: ${productPage.selectors.title}
+- Price: ${productPage.selectors.price}
+- Currency: ${productPage.selectors.currency}
+- Image: ${productPage.selectors.image}
+- Description: ${productPage.selectors.description}
+- SKU: ${productPage.selectors.sku}
+- Brand: ${productPage.selectors.brand}
+- Availability: ${productPage.selectors.availability}
+- Rating: ${productPage.selectors.rating}
+- ReviewCount: ${productPage.selectors.reviewCount}
+
+${productPage.notes ? `Notes: ${productPage.notes}
+` : ''}` : ''}
+
 ## Contact
 ${contactEmail || 'support@your-domain.com'}
 
@@ -155,17 +471,24 @@ Generated via https://eoynx.com`;
     return JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'WebAPI',
-      name: name || 'Your Service',
+      name: displayName,
       alternateName: nameKo || undefined,
-      description: description || 'Your service description',
+      description: displayDescription,
       url: homepage || 'https://your-domain.com',
       documentation: `${homepage}/docs`,
       provider: {
         '@type': 'Organization',
-        name: name,
+        name: displayName,
         email: contactEmail,
       },
       endpointUrl: apiBase,
+      additionalProperty: hasProductInfo ? [
+        {
+          '@type': 'PropertyValue',
+          name: 'productPage',
+          value: productPage,
+        },
+      ] : undefined,
       availableChannels: endpoints.map(ep => ({
         '@type': 'ServiceChannel',
         name: ep.description || ep.path,
@@ -177,26 +500,332 @@ Generated via https://eoynx.com`;
 
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const handleAutoFill = async () => {
+    if (!autoUrl) {
+      setAutoError('URL을 입력해주세요.');
+      return;
+    }
+
+    setAutoError(null);
+    setIsAutoLoading(true);
+    try {
+      const response = await fetch('/api/services/auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: autoUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.service) {
+        setAutoError(data?.error || '자동 등록에 실패했습니다.');
+        return;
+      }
+
+      const service = data.service;
+      const hasKorean = /[가-힣]/.test(`${service.name || ''} ${service.description || ''} ${service.nameKo || ''} ${service.descriptionKo || ''}`);
+      const shouldFillEnglish = !hasKorean;
+      const endpoints = (service.endpoints || []).map((ep: EndpointConfig) => ({
+        ...ep,
+        id: ep.id || crypto.randomUUID(),
+      }));
+
+      setServiceData(prev => ({
+        ...prev,
+        name: shouldFillEnglish ? (service.name || prev.name) : prev.name,
+        nameKo: service.nameKo || (hasKorean ? service.name : '') || prev.nameKo,
+        description: shouldFillEnglish ? (service.description || prev.description) : prev.description,
+        descriptionKo: service.descriptionKo || (hasKorean ? service.description : '') || prev.descriptionKo,
+        homepage: service.homepage || prev.homepage,
+        apiBase: service.apiBase || prev.apiBase,
+        productPage: {
+          ...prev.productPage,
+          ...(service.productPage || {}),
+          selectors: {
+            ...prev.productPage.selectors,
+            ...(service.productPage?.selectors || {}),
+          },
+        },
+        endpoints: endpoints.length ? endpoints : prev.endpoints,
+        authType: service.authType || prev.authType,
+        rateLimit: service.rateLimit || prev.rateLimit,
+        contactEmail: service.contactEmail || prev.contactEmail,
+      }));
+
+      setShowAdvancedProduct(true);
+    } catch {
+      setAutoError('자동 등록에 실패했습니다.');
+    } finally {
+      setIsAutoLoading(false);
+    }
+  };
+
+  const handleDetectSelectors = async () => {
+    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
+    if (!targetUrl) {
+      setDetectError('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    setDetectError(null);
+    setIsDetectingSelectors(true);
+    try {
+      const response = await fetch('/api/services/selectors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.productPage) {
+        setDetectError(data?.error || '셀렉터 자동 탐지에 실패했습니다.');
+        return;
+      }
+
+      setServiceData(prev => ({
+        ...prev,
+        productPage: {
+          ...prev.productPage,
+          ...data.productPage,
+          selectors: {
+            ...prev.productPage.selectors,
+            ...(data.productPage.selectors || {}),
+          },
+        },
+      }));
+      setShowAdvancedProduct(true);
+    } catch {
+      setDetectError('셀렉터 자동 탐지에 실패했습니다.');
+    } finally {
+      setIsDetectingSelectors(false);
+    }
+  };
+
+  const handleSampleParse = async () => {
+    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
+    if (!targetUrl) {
+      setSampleError('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    setSampleError(null);
+    setIsSampleLoading(true);
+    try {
+      const response = await fetch('/api/services/parse-sample', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: targetUrl,
+          selectors: serviceData.productPage.selectors,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.extracted) {
+        setSampleError(data?.error || '샘플 파싱에 실패했습니다.');
+        return;
+      }
+
+      setSampleResult({
+        title: data.extracted.title,
+        description: data.extracted.description,
+        price: data.extracted.price,
+        image: data.extracted.image,
+      });
+    } catch {
+      setSampleError('샘플 파싱에 실패했습니다.');
+    } finally {
+      setIsSampleLoading(false);
+    }
+  };
+
+  const handleRelatedExtract = async () => {
+    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
+    if (!targetUrl) {
+      setRelatedError('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    setRelatedError(null);
+    setIsRelatedLoading(true);
+    try {
+      const response = await fetch('/api/services/related', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.urls) {
+        setRelatedError(data?.error || '관련 상품 추출에 실패했습니다.');
+        return;
+      }
+
+      setRelatedLinks(data.urls);
+    } catch {
+      setRelatedError('관련 상품 추출에 실패했습니다.');
+    } finally {
+      setIsRelatedLoading(false);
+    }
+  };
+
+  const handleRelatedParse = async (useCache = true) => {
+    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
+    if (!targetUrl) {
+      setRelatedParseError('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    // 캐시 확인 (useCache가 true일 때만)
+    if (useCache) {
+      const cached = loadFromCache(targetUrl);
+      if (cached) {
+        setRelatedItems(cached.items);
+        setRelatedParseError(null);
+        return;
+      }
+    }
+
+    setRelatedParseError(null);
+    setIsRelatedParsing(true);
+    try {
+      const response = await fetch('/api/services/related-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: targetUrl,
+          selectors: serviceData.productPage.selectors,
+          limit: relatedLimit,
+          sortBy: relatedSortBy,
+          removeDuplicatesEnabled: relatedRemoveDuplicates,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.items) {
+        setRelatedParseError(data?.error || '관련 상품 파싱에 실패했습니다.');
+        return;
+      }
+
+      const items = data.items || [];
+      setRelatedItems(items);
+      
+      // 결과를 캐시에 저장
+      if (items.length > 0) {
+        saveToCache(targetUrl, items);
+      }
+    } catch {
+      setRelatedParseError('관련 상품 파싱에 실패했습니다.');
+    } finally {
+      setIsRelatedParsing(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          const role = data?.user?.role || 'free';
+          setUserRole(role);
+          // Pro/Admin은 기본 5개, Free는 3개
+          if (role === 'pro' || role === 'admin') {
+            setRelatedLimit(5);
+          }
+        }
+      } catch {
+        // 기본값 유지
+      }
+    };
+    fetchUserRole();
+  }, []);
+
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+
+    const loadService = async () => {
+      try {
+        setIsLoadingService(true);
+        const response = await fetch(`/api/services?id=${editId}`);
+        const data = await response.json();
+        if (!response.ok || !data?.service) {
+          setSaveError(data?.error || '서비스 정보를 불러오는데 실패했습니다.');
+          return;
+        }
+
+        const service = data.service;
+        const endpoints = (service.endpoints || []).map((ep: EndpointConfig) => ({
+          ...ep,
+          id: ep.id || crypto.randomUUID(),
+        }));
+
+        setServiceData({
+          name: service.name || '',
+          nameKo: service.name_ko || '',
+          description: service.description || '',
+          descriptionKo: service.description_ko || '',
+          homepage: service.homepage || '',
+          apiBase: service.api_base || '',
+          productPage: {
+            ...initialServiceData.productPage,
+            ...(service.productPage || {}),
+            selectors: {
+              ...initialServiceData.productPage.selectors,
+              ...(service.productPage?.selectors || {}),
+            },
+          },
+          endpoints: endpoints.length ? endpoints : [{ ...defaultEndpoint, id: crypto.randomUUID() }],
+          authType: service.auth_type || 'none',
+          rateLimit: service.rate_limit || '100/min',
+          contactEmail: service.contact_email || '',
+        });
+
+        setEditingId(editId);
+        if (service.slug) {
+          setSavedUrl(`https://eoynx.com/s/${service.slug}`);
+        }
+      } catch {
+        setSaveError('서비스 정보를 불러오는데 실패했습니다.');
+      } finally {
+        setIsLoadingService(false);
+      }
+    };
+
+    loadService();
+  }, [searchParams]);
+
   const handleSave = async () => {
     // 필수 필드 검증
-    if (!serviceData.name || !serviceData.apiBase || !serviceData.description) {
-      setSaveError('필수 필드를 모두 입력해주세요: 서비스명(영문), API Base URL, 설명');
+    if ((!serviceData.name && !serviceData.nameKo) || !serviceData.apiBase || (!serviceData.description && !serviceData.descriptionKo)) {
+      setSaveError('필수 필드를 모두 입력해주세요: 서비스명, API Base URL, 설명');
       return;
     }
 
     setIsSaving(true);
     setSaveError(null);
     try {
+      const payload = {
+        ...serviceData,
+        name: serviceData.name || serviceData.nameKo,
+        description: serviceData.description || serviceData.descriptionKo,
+      };
+
       const response = await fetch('/api/services', {
-        method: 'POST',
+        method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serviceData),
+        body: JSON.stringify(editingId ? { ...payload, id: editingId } : payload),
       });
       
       const data = await response.json();
       
-      if (response.ok && data.slug) {
-        setSavedUrl(`https://eoynx.com/s/${data.slug}`);
+      if (response.ok) {
+        if (data.slug) {
+          setSavedUrl(`https://eoynx.com/s/${data.slug}`);
+        }
+        if (!data.slug && savedUrl) {
+          setSavedUrl(savedUrl);
+        }
       } else {
         const errorMsg = data.details ? `${data.error}: ${data.details}` : (data.error || '저장에 실패했습니다.');
         setSaveError(errorMsg);
@@ -216,20 +845,51 @@ Generated via https://eoynx.com`;
         <div>
           <h1 className="text-2xl font-bold text-onyx-100 flex items-center gap-2">
             <DashboardIcon className="w-7 h-7 text-dawn-500" />
-            서비스 등록
+            {editingId ? '서비스 수정' : '서비스 등록'}
           </h1>
           <p className="mt-1 text-sm text-onyx-400">
-            AI 에이전트가 이해할 수 있는 구조화된 데이터를 생성합니다.
+            {editingId ? '기존 서비스를 업데이트합니다.' : 'AI 에이전트가 이해할 수 있는 구조화된 데이터를 생성합니다.'}
           </p>
         </div>
         <div className="text-xs text-onyx-500 bg-onyx-800/50 px-3 py-1 rounded-full">
-          Free Tier
+          {isLoadingService ? '불러오는 중...' : 'Free Tier'}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 입력 폼 */}
         <div className="space-y-6">
+          {/* Pro 자동 등록 */}
+          <div className="bg-onyx-900/50 border border-onyx-800 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-onyx-100">Pro 자동 등록</h2>
+              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">Pro</span>
+            </div>
+            <p className="text-sm text-onyx-400 mb-4">
+              페이지 URL을 넣으면 서비스 정보를 자동으로 채웁니다.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="url"
+                value={autoUrl}
+                onChange={(e) => setAutoUrl(e.target.value)}
+                placeholder="https://example.com/products/123"
+                className="flex-1 bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                disabled={isAutoLoading}
+                className="px-4 py-2 bg-purple-600/90 hover:bg-purple-500 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+              >
+                {isAutoLoading ? '분석 중...' : '자동 채우기'}
+              </button>
+            </div>
+            {autoError && (
+              <p className="text-sm text-red-400 mt-2">{autoError}</p>
+            )}
+          </div>
+
           {/* 기본 정보 */}
           <div className="bg-onyx-900/50 border border-onyx-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-onyx-100 mb-4 flex items-center gap-2">
@@ -385,10 +1045,495 @@ Generated via https://eoynx.com`;
             </div>
           </div>
 
-          {/* 인증 & 설정 */}
+          {/* 상품 페이지 파싱 정보 */}
           <div className="bg-onyx-900/50 border border-onyx-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-onyx-100 mb-4 flex items-center gap-2">
               <span className="w-6 h-6 bg-dawn-500/20 text-dawn-400 rounded-full flex items-center justify-center text-sm">3</span>
+              상품 페이지 파싱 정보
+            </h2>
+            <p className="text-sm text-onyx-400 mb-4">
+              AI가 상품 페이지를 쉽게 파싱할 수 있도록 URL 패턴과 셀렉터 정보를 등록하세요.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => applyProductPreset('json-ld')}
+                className="px-3 py-1.5 text-xs bg-onyx-800 text-onyx-300 hover:text-onyx-100 rounded-lg transition-colors"
+              >
+                JSON-LD 기본 채우기
+              </button>
+              <button
+                type="button"
+                onClick={() => applyProductPreset('dom')}
+                className="px-3 py-1.5 text-xs bg-onyx-800 text-onyx-300 hover:text-onyx-100 rounded-lg transition-colors"
+              >
+                DOM 기본 채우기
+              </button>
+              <button
+                type="button"
+                onClick={handleDetectSelectors}
+                disabled={isDetectingSelectors}
+                className="px-3 py-1.5 text-xs bg-purple-500/20 text-purple-300 hover:text-purple-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isDetectingSelectors ? '자동 탐지 중...' : '셀렉터 자동 탐지'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSampleParse}
+                disabled={isSampleLoading}
+                className="px-3 py-1.5 text-xs bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isSampleLoading ? '샘플 파싱 중...' : '샘플 파싱'}
+              </button>
+              <button
+                type="button"
+                onClick={handleRelatedExtract}
+                disabled={isRelatedLoading}
+                className="px-3 py-1.5 text-xs bg-blue-500/20 text-blue-300 hover:text-blue-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isRelatedLoading ? '관련 상품 추출 중...' : '관련 상품 추출'}
+              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleRelatedParse(true)}
+                  disabled={isRelatedParsing}
+                  className="px-3 py-1.5 text-xs bg-sky-500/20 text-sky-300 hover:text-sky-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isRelatedParsing ? '관련 상품 파싱 중...' : '관련 상품 파싱'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRelatedParse(false)}
+                  disabled={isRelatedParsing}
+                  className="px-2 py-1.5 text-xs bg-orange-500/20 text-orange-300 hover:text-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
+                  title="캐시를 무시하고 새로 파싱"
+                >
+                  <RefreshIcon size={14} />
+                </button>
+                {cachedResults.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCachedResults(!showCachedResults)}
+                    className="px-2 py-1.5 text-xs bg-violet-500/20 text-violet-300 hover:text-violet-200 rounded-lg transition-colors flex items-center gap-1"
+                    title={`저장된 결과 ${cachedResults.length}개`}
+                  >
+                    <FolderIcon size={14} /> {cachedResults.length}
+                  </button>
+                )}
+                <select
+                  value={relatedLimit}
+                  onChange={(e) => setRelatedLimit(Number(e.target.value))}
+                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-700 text-onyx-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  title="관련 상품 개수"
+                >
+                  <option value={3}>3개</option>
+                  <option value={5}>5개</option>
+                  {(userRole === 'pro' || userRole === 'admin') && (
+                    <>
+                      <option value={10}>10개</option>
+                      <option value={15}>15개</option>
+                      <option value={20}>20개 (Pro)</option>
+                    </>
+                  )}
+                </select>
+                <select
+                  value={relatedSortBy}
+                  onChange={(e) => setRelatedSortBy(e.target.value as typeof relatedSortBy)}
+                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-700 text-onyx-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  title="정렬 옵션"
+                >
+                  <option value="none">정렬 없음</option>
+                  <option value="price-asc">가격 낮은순</option>
+                  <option value="price-desc">가격 높은순</option>
+                  <option value="name-asc">이름 오름차순</option>
+                  <option value="name-desc">이름 내림차순</option>
+                </select>
+                <label className="flex items-center gap-1 text-xs text-onyx-400 cursor-pointer" title="URL 기준 중복 상품 제거">
+                  <input
+                    type="checkbox"
+                    checked={relatedRemoveDuplicates}
+                    onChange={(e) => setRelatedRemoveDuplicates(e.target.checked)}
+                    className="w-3 h-3 rounded border-onyx-600 bg-onyx-800 text-sky-500 focus:ring-sky-500"
+                  />
+                  중복제거
+                </label>
+                {userRole === 'free' && (
+                  <span className="text-amber-400/80" title="Pro 요금제로 업그레이드하면 최대 20개까지 파싱 가능">
+                    <LockIcon size={12} />
+                  </span>
+                )}
+              </div>
+              {relatedItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleOptimizeSelectors}
+                  disabled={isOptimizing}
+                  className="px-3 py-1.5 text-xs bg-amber-500/20 text-amber-300 hover:text-amber-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                  title="파싱 결과 기반 셀렉터 최적화"
+                >
+                  <BoltIcon size={14} />
+                  {isOptimizing ? '분석 중...' : '셀렉터 최적화'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedProduct(prev => !prev)}
+                className="px-3 py-1.5 text-xs bg-dawn-500/10 text-dawn-400 hover:text-dawn-300 rounded-lg transition-colors"
+              >
+                {showAdvancedProduct ? '상세 셀렉터 숨기기' : '상세 셀렉터 입력'}
+              </button>
+            </div>
+            {detectError && (
+              <p className="text-sm text-red-400 mb-3">{detectError}</p>
+            )}
+            {sampleError && (
+              <p className="text-sm text-red-400 mb-3">{sampleError}</p>
+            )}
+            {relatedError && (
+              <p className="text-sm text-red-400 mb-3">{relatedError}</p>
+            )}
+            {relatedParseError && (
+              <p className="text-sm text-red-400 mb-3">{relatedParseError}</p>
+            )}
+            {optimizeError && (
+              <p className="text-sm text-red-400 mb-3">{optimizeError}</p>
+            )}
+            {selectorRecommendations && (
+              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-amber-200 flex items-center gap-1.5">
+                    <BoltIcon size={16} />
+                    셀렉터 최적화 추천
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setSelectorRecommendations(null)}
+                    className="text-xs text-amber-400 hover:text-amber-300"
+                  >
+                    닫기
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {(['title', 'price', 'image'] as const).map((field) => {
+                    const recommendations = selectorRecommendations[field];
+                    if (!recommendations || recommendations.length === 0) return null;
+                    
+                    return (
+                      <div key={field} className="bg-onyx-800/50 rounded-lg p-3">
+                        <div className="text-xs text-onyx-400 mb-2">
+                          {field === 'title' ? '상품명' : field === 'price' ? '가격' : '이미지'}
+                        </div>
+                        <div className="space-y-1">
+                          {recommendations.slice(0, 3).map((rec, idx) => (
+                            <div key={idx} className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <code className="text-xs text-amber-300 bg-onyx-700/50 px-1.5 py-0.5 rounded">
+                                  {rec.selector}
+                                </code>
+                                {rec.sampleValue && (
+                                  <span className="text-[10px] text-onyx-500 ml-2 truncate">
+                                    ({rec.sampleValue.slice(0, 30)}{rec.sampleValue.length > 30 ? '...' : ''})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-onyx-500">
+                                  {Math.round(rec.score * 100)}%
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => applyRecommendedSelector(field, rec.selector)}
+                                  className="px-2 py-0.5 text-[10px] bg-amber-500/30 text-amber-200 hover:bg-amber-500/50 rounded"
+                                >
+                                  적용
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {showCachedResults && cachedResults.length > 0 && (
+              <div className="bg-violet-900/20 border border-violet-700/50 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-violet-200 flex items-center gap-1.5">
+                    <FolderIcon size={16} />
+                    저장된 파싱 결과 ({cachedResults.length}개)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowCachedResults(false)}
+                    className="text-xs text-violet-400 hover:text-violet-300"
+                  >
+                    닫기
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-auto">
+                  {cachedResults.map((cached) => (
+                    <div key={cached.key} className="flex items-center justify-between bg-onyx-800/50 rounded-lg px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs text-onyx-300 truncate" title={cached.url}>
+                          {cached.url}
+                        </div>
+                        <div className="text-[10px] text-onyx-500">
+                          {new Date(cached.timestamp).toLocaleString('ko-KR')} · {cached.items.length}개 상품
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => restoreFromCache(cached)}
+                          className="px-2 py-1 text-[10px] bg-violet-500/20 text-violet-300 hover:text-violet-200 rounded"
+                        >
+                          불러오기
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteFromCache(cached.key)}
+                          className="px-2 py-1 text-[10px] bg-red-500/20 text-red-300 hover:text-red-200 rounded"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {relatedLinks.length > 0 && (
+              <div className="bg-onyx-800/50 border border-onyx-700 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-semibold text-onyx-200 mb-2">관련 상품 링크</h3>
+                <ul className="text-xs text-onyx-300 space-y-1 max-h-40 overflow-auto">
+                  {relatedLinks.map((link) => (
+                    <li key={link} className="truncate">
+                      {link}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {relatedItems.length > 0 && (
+              <div className="bg-onyx-800/50 border border-onyx-700 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-semibold text-onyx-200 mb-2">관련 상품 파싱 결과</h3>
+                <div className="space-y-3">
+                  {relatedItems.map((item) => (
+                    <div key={item.url} className="flex items-center gap-3">
+                      {item.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.image}
+                          alt="related"
+                          className="w-12 h-12 object-cover rounded border border-onyx-700"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded border border-onyx-700 bg-onyx-700/40" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm text-onyx-200 truncate">{item.title || item.url}</div>
+                        <div className="text-xs text-onyx-400">{item.price || '-'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sampleResult && (
+              <div className="bg-onyx-800/50 border border-onyx-700 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-semibold text-onyx-200 mb-3">샘플 파싱 결과</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-onyx-500">상품명</div>
+                    <div className="text-onyx-200 break-words">{sampleResult.title || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-onyx-500">가격</div>
+                    <div className="text-onyx-200">{sampleResult.price || '-'}</div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-onyx-500">설명</div>
+                    <div className="text-onyx-200 break-words">{sampleResult.description || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-onyx-500">이미지</div>
+                    {sampleResult.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={sampleResult.image}
+                        alt="sample"
+                        className="mt-2 w-28 h-28 object-cover rounded-lg border border-onyx-700"
+                      />
+                    ) : (
+                      <div className="text-onyx-400">-</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">상품 URL 패턴</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.urlPattern}
+                    onChange={(e) => updateProductPageField('urlPattern', e.target.value)}
+                    placeholder="/products/* 또는 /product/:id"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">예시 URL</label>
+                  <input
+                    type="url"
+                    value={serviceData.productPage.sampleUrl}
+                    onChange={(e) => updateProductPageField('sampleUrl', e.target.value)}
+                    placeholder="https://example.com/products/123"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-onyx-300 mb-1">데이터 소스</label>
+                <select
+                  value={serviceData.productPage.dataSource}
+                  onChange={(e) => updateProductPageField('dataSource', e.target.value as ProductPageConfig['dataSource'])}
+                  className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 focus:border-dawn-500 focus:outline-none"
+                >
+                  <option value="json-ld">JSON-LD (구조화 데이터)</option>
+                  <option value="meta">Meta/OpenGraph</option>
+                  <option value="dom">DOM 셀렉터</option>
+                  <option value="api">API 응답</option>
+                </select>
+              </div>
+
+              {showAdvancedProduct && (
+                <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">상품명 셀렉터</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.title}
+                    onChange={(e) => updateProductSelector('title', e.target.value)}
+                    placeholder=".product-title 또는 jsonld.name"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">가격 셀렉터</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.price}
+                    onChange={(e) => updateProductSelector('price', e.target.value)}
+                    placeholder=".product-price 또는 jsonld.offers.price"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">통화</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.currency}
+                    onChange={(e) => updateProductSelector('currency', e.target.value)}
+                    placeholder="KRW 또는 jsonld.offers.priceCurrency"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">이미지</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.image}
+                    onChange={(e) => updateProductSelector('image', e.target.value)}
+                    placeholder=".product-image img 또는 jsonld.image"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">설명</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.description}
+                    onChange={(e) => updateProductSelector('description', e.target.value)}
+                    placeholder=".product-desc 또는 jsonld.description"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">SKU</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.sku}
+                    onChange={(e) => updateProductSelector('sku', e.target.value)}
+                    placeholder=".sku 또는 jsonld.sku"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">브랜드</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.brand}
+                    onChange={(e) => updateProductSelector('brand', e.target.value)}
+                    placeholder=".brand 또는 jsonld.brand.name"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">재고 상태</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.availability}
+                    onChange={(e) => updateProductSelector('availability', e.target.value)}
+                    placeholder=".availability 또는 jsonld.offers.availability"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">평점</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.rating}
+                    onChange={(e) => updateProductSelector('rating', e.target.value)}
+                    placeholder=".rating 또는 jsonld.aggregateRating.ratingValue"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-onyx-300 mb-1">리뷰 수</label>
+                  <input
+                    type="text"
+                    value={serviceData.productPage.selectors.reviewCount}
+                    onChange={(e) => updateProductSelector('reviewCount', e.target.value)}
+                    placeholder=".review-count 또는 jsonld.aggregateRating.reviewCount"
+                    className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                  />
+                </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm text-onyx-300 mb-1">추가 메모</label>
+                <textarea
+                  value={serviceData.productPage.notes}
+                  onChange={(e) => updateProductPageField('notes', e.target.value)}
+                  placeholder="예: 가격은 데이터 레이어(window.__PRODUCT__)에서 제공됨"
+                  rows={3}
+                  className="w-full bg-onyx-800 border border-onyx-700 rounded-lg px-3 py-2 text-onyx-100 placeholder-onyx-500 focus:border-dawn-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 인증 & 설정 */}
+          <div className="bg-onyx-900/50 border border-onyx-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-onyx-100 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 bg-dawn-500/20 text-dawn-400 rounded-full flex items-center justify-center text-sm">4</span>
               인증 & 설정
             </h2>
             <div className="space-y-4">
@@ -437,7 +1582,7 @@ Generated via https://eoynx.com`;
           {/* 저장 버튼 */}
           <button
             onClick={handleSave}
-            disabled={isSaving || !serviceData.name || !serviceData.apiBase || !serviceData.description}
+            disabled={isSaving || isLoadingService || !serviceData.name || !serviceData.apiBase || !serviceData.description}
             className="w-full py-3 bg-gradient-to-r from-dawn-500 to-dawn-600 hover:from-dawn-400 hover:to-dawn-500 disabled:from-onyx-700 disabled:to-onyx-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-dawn-500/20 disabled:shadow-none flex items-center justify-center gap-2"
           >
             {isSaving ? (
@@ -445,7 +1590,7 @@ Generated via https://eoynx.com`;
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 저장 중...
               </>
-            ) : '서비스 등록하기'}
+            ) : (editingId ? '수정 저장하기' : '서비스 등록하기')}
           </button>
 
           {saveError && (
@@ -465,7 +1610,7 @@ Generated via https://eoynx.com`;
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                서비스가 등록되었습니다!
+                {editingId ? '서비스가 업데이트되었습니다!' : '서비스가 등록되었습니다!'}
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs text-green-300 bg-green-500/10 px-2 py-1 rounded truncate">{savedUrl}</code>

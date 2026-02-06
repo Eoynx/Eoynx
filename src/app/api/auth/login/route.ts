@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
     const token = await new SignJWT({
       sub: data.user.id,
       email: data.user.email,
+      name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
       role: data.user.role || 'user',
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -70,8 +71,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // HTTP-only 쿠키로 토큰 저장
-    response.cookies.set('auth-token', token, {
+    // HTTP-only 쿠키로 토큰 저장 (session 쿠키로 통일)
+    response.cookies.set('session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
