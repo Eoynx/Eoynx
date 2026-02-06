@@ -6,11 +6,151 @@ Eoynx는 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 완
 
 MCP(Model Context Protocol)는 AI 에이전트와 외부 도구/서비스 간의 표준화된 통신 프로토콜입니다. JSON-RPC 2.0을 기반으로 하며, AI 에이전트가 다양한 도구와 리소스에 일관된 방식으로 접근할 수 있게 해줍니다.
 
-## 엔드포인트
+## MCP 서버 종류
+
+Eoynx는 두 가지 MCP 서버를 제공합니다:
+
+| 서버 | URL | 인증 | 용도 |
+|------|-----|------|------|
+| **Next.js MCP** | `https://eoynx.com/api/agent/mcp` | 필요 (X-Agent-Token) | 이커머스 기능 (검색, 장바구니, 주문) |
+| **Edge MCP** | `https://api.eoynx.com/mcp` | 불필요 | 범용 웹 스크래핑/파싱 |
+
+---
+
+## Edge MCP 서버 (api.eoynx.com)
+
+Cloudflare Workers 기반의 고성능 MCP 서버입니다. 인증 없이 사용 가능합니다.
+
+### 엔드포인트
 
 ```
-POST /api/agent/mcp
-Content-Type: application/json
+GET  https://api.eoynx.com/mcp     # 서버 정보
+POST https://api.eoynx.com/mcp     # MCP JSON-RPC
+```
+
+### 서버 정보 조회
+
+```bash
+curl https://api.eoynx.com/mcp
+```
+
+응답:
+```json
+{
+  "name": "eoynx-edge-gateway",
+  "version": "1.0.0",
+  "protocolVersion": "2024-11-05",
+  "description": "Eoynx MCP Server (Cloudflare Workers)",
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  }
+}
+```
+
+### Edge MCP 도구 목록
+
+| 도구 | 설명 | 파라미터 |
+|-----|------|----------|
+| `fetch_url` | URL의 HTML 콘텐츠를 가져옵니다 | `url` (필수), `headers` (선택) |
+| `parse_product` | 상품 페이지에서 제목, 설명, 가격, 이미지를 추출합니다 | `url` (필수), `selectors` (선택) |
+| `extract_links` | 웹페이지에서 모든 링크를 추출합니다 | `url` (필수), `filter` (선택) |
+| `extract_text` | 웹페이지에서 지정한 셀렉터의 텍스트를 추출합니다 | `url` (필수), `selector` (필수) |
+
+### Edge MCP 도구 호출 예시
+
+```bash
+# fetch_url - URL 콘텐츠 가져오기
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "fetch_url",
+      "arguments": { "url": "https://httpbin.org/get" }
+    }
+  }'
+
+# extract_links - 링크 추출 (필터 적용)
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "extract_links",
+      "arguments": {
+        "url": "https://news.ycombinator.com",
+        "filter": "item"
+      }
+    }
+  }'
+
+# parse_product - 상품 정보 파싱
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "parse_product",
+      "arguments": {
+        "url": "https://shop.example.com/product/123",
+        "selectors": {
+          "title": "h1.product-name",
+          "price": ".product-price"
+        }
+      }
+    }
+  }'
+
+# extract_text - 특정 요소 텍스트 추출
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "extract_text",
+      "arguments": {
+        "url": "https://example.com",
+        "selector": "title"
+      }
+    }
+  }'
+```
+
+---
+
+## Next.js MCP 서버 (eoynx.com)
+
+이커머스 기능을 제공하는 인증 기반 MCP 서버입니다.
+
+### 엔드포인트
+
+```
+GET  /api/agent/mcp     # 서버 정보
+POST /api/agent/mcp     # MCP JSON-RPC
+
+# 인증 헤더 필수
+X-Agent-Token: ag_xxx...
+```
+
+### 토큰 발급
+
+```bash
+curl -X POST https://eoynx.com/api/agent/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "demo-agent",
+    "agentSecret": "demo-secret-123"
+  }'
 ```
 
 ## 기본 구조

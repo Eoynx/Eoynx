@@ -8,8 +8,10 @@
 2. [인증](#인증)
 3. [기본 API](#기본-api)
 4. [MCP 프로토콜](#mcp-프로토콜)
-5. [실시간 스트리밍](#실시간-스트리밍)
-6. [에러 처리](#에러-처리)
+5. [Edge Gateway API](#edge-gateway-api)
+6. [Services API](#services-api)
+7. [실시간 스트리밍](#실시간-스트리밍)
+8. [에러 처리](#에러-처리)
 
 ---
 
@@ -17,10 +19,12 @@
 
 ### 기본 URL
 
-```
-Production: https://eoynx.com
-Development: http://localhost:3000
-```
+| 환경 | URL | 설명 |
+|------|-----|------|
+| Production | `https://eoynx.com` | 메인 Next.js 앱 |
+| Edge Gateway | `https://api.eoynx.com` | Cloudflare Workers Edge API |
+| MCP Gateway | `https://mcp.eoynx.com` | MCP 전용 엔드포인트 |
+| Development | `http://localhost:3000` | 로컬 개발 서버 |
 
 ### 필수 헤더
 
@@ -57,23 +61,31 @@ curl https://eoynx.com/api/ai-manifest.json
 
 ### 1. 토큰 발급
 
+Agent Gateway 토큰을 발급받습니다. 기본 테스트 계정:
+- `demo-agent` / `demo-secret-123` (read, write 권한)
+- `test-agent` / `test-secret-456` (read 권한)
+
 ```bash
-curl -X POST https://your-domain.com/api/agent/auth/token \
+curl -X POST https://eoynx.com/api/agent/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "agentId": "your-agent-id",
-    "agentSecret": "your-secret-key",
-    "scopes": ["read", "search", "execute"]
+    "agentId": "demo-agent",
+    "agentSecret": "demo-secret-123"
   }'
 ```
 
 응답:
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "expiresAt": "2026-02-04T00:00:00Z",
-  "permissions": ["read", "write", "execute"],
-  "scopes": ["read", "search", "execute"]
+  "success": true,
+  "data": {
+    "token": "ag_eyJhZ2VudElkIjoiZGVtby1hZ2VudCI...",
+    "agentId": "demo-agent",
+    "issuedAt": 1770347087,
+    "expiresAt": 1770433487,
+    "permissions": ["read", "write"],
+    "scopes": ["*"]
+  }
 }
 ```
 
@@ -82,15 +94,21 @@ curl -X POST https://your-domain.com/api/agent/auth/token \
 모든 인증이 필요한 API 요청에 토큰을 포함합니다:
 
 ```bash
-curl https://your-domain.com/api/agent/action \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+# X-Agent-Token 헤더 사용 (권장)
+curl https://eoynx.com/api/agent/mcp \
+  -H "X-Agent-Token: ag_eyJhZ2VudElkIjoiZGVtby1hZ2VudCI..."
+
+# 또는 Authorization 헤더 사용
+curl https://eoynx.com/api/agent/action \
+  -H "Authorization: Bearer ag_eyJhZ2VudElkIjoiZGVtby1hZ2VudCI..."
 ```
 
-또는 커스텀 헤더 사용:
-```bash
-curl https://your-domain.com/api/agent/action \
-  -H "X-Agent-Token: eyJhbGciOiJIUzI1NiIs..."
-```
+### 토큰 형식
+
+| 형식 | 예시 | 설명 |
+|------|------|------|
+| Agent Token | `ag_xxx` | Agent Gateway 전용 토큰 |
+| JWT | `eyJhbGci...` | 표준 JWT 토큰 |
 
 ### 권한 수준
 
@@ -299,17 +317,17 @@ Content-Type: application/json
 }
 ```
 
-### 지원 도구 목록
+### 지원 도구 목록 (Next.js MCP)
 
-| 도구 | 설명 |
-|-----|------|
-| `search_products` | 상품 검색 |
-| `get_product_details` | 상품 상세 조회 |
-| `add_to_cart` | 장바구니 추가 |
-| `view_cart` | 장바구니 조회 |
-| `create_order` | 주문 생성 |
-| `get_site_status` | 사이트 상태 조회 |
-| `subscribe_notification` | 알림 구독 |
+| 도구 | 설명 | 필요 권한 |
+|-----|------|----------|
+| `search_products` | 상품 검색 | read |
+| `get_product_details` | 상품 상세 조회 | read |
+| `add_to_cart` | 장바구니 추가 | write |
+| `view_cart` | 장바구니 조회 | read |
+| `create_order` | 주문 생성 | execute |
+| `get_site_status` | 사이트 상태 조회 | read |
+| `subscribe_notification` | 알림 구독 | read |
 
 ### 배치 요청
 
@@ -323,6 +341,214 @@ Content-Type: application/json
   {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
   {"jsonrpc": "2.0", "id": 2, "method": "resources/list"}
 ]
+```
+
+---
+
+## Edge Gateway API
+
+Cloudflare Workers 기반의 고성능 Edge API입니다. 인증 없이 사용 가능합니다.
+
+### 기본 URL
+
+```
+https://api.eoynx.com
+https://mcp.eoynx.com (MCP 전용)
+```
+
+### 서버 정보 조회
+
+```bash
+curl https://api.eoynx.com/mcp
+```
+
+응답:
+```json
+{
+  "name": "eoynx-edge-gateway",
+  "version": "1.0.0",
+  "protocolVersion": "2024-11-05",
+  "description": "Eoynx MCP Server (Cloudflare Workers)",
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  }
+}
+```
+
+### Edge MCP 도구
+
+| 도구 | 설명 | 파라미터 |
+|-----|------|----------|
+| `fetch_url` | URL 콘텐츠 가져오기 | `url`, `headers?` |
+| `parse_product` | 상품 정보 파싱 | `url`, `selectors?` |
+| `extract_links` | 링크 추출 | `url`, `filter?` |
+| `extract_text` | 텍스트 추출 | `url`, `selector` |
+
+### 도구 호출 예시
+
+```bash
+# fetch_url
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "fetch_url",
+      "arguments": {
+        "url": "https://example.com"
+      }
+    }
+  }'
+
+# extract_links
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "extract_links",
+      "arguments": {
+        "url": "https://news.ycombinator.com",
+        "filter": "item"
+      }
+    }
+  }'
+
+# parse_product
+curl -X POST https://api.eoynx.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "parse_product",
+      "arguments": {
+        "url": "https://shop.example.com/product/123",
+        "selectors": {
+          "title": "h1.product-name",
+          "price": ".product-price"
+        }
+      }
+    }
+  }'
+```
+
+### Parse API (직접 호출)
+
+```bash
+POST https://api.eoynx.com/parse
+Content-Type: application/json
+
+{
+  "url": "https://example.com/product/123",
+  "selectors": {
+    "title": "h1",
+    "price": ".price",
+    "description": ".description"
+  }
+}
+```
+
+응답:
+```json
+{
+  "url": "https://example.com/product/123",
+  "extracted": {
+    "title": "상품명",
+    "description": "상품 설명",
+    "price": "29,900",
+    "image": "https://example.com/image.jpg",
+    "raw": {
+      "titleSelector": "h1",
+      "descriptionSelector": ".description",
+      "priceSelector": ".price",
+      "imageSelector": "img"
+    }
+  }
+}
+```
+
+---
+
+## Services API
+
+서비스 관리 및 웹 스크래핑 API입니다.
+
+### 서비스 목록 조회
+
+```bash
+GET /api/services
+```
+
+### 관련 상품 파싱
+
+```bash
+POST /api/services/related-parse
+Content-Type: application/json
+
+{
+  "url": "https://shop.example.com/product/123",
+  "selectors": {
+    "itemContainer": ".related-item",
+    "title": ".item-name",
+    "price": ".item-price",
+    "link": "a"
+  },
+  "limit": 10,
+  "sortBy": "price-asc",
+  "removeDuplicates": true
+}
+```
+
+**파라미터:**
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|-----|------|
+| `url` | string | Yes | 파싱할 페이지 URL |
+| `selectors` | object | Yes | CSS 셀렉터 설정 |
+| `limit` | number | No | 결과 수 제한 (기본: 5, 최대: role에 따라 다름) |
+| `sortBy` | string | No | 정렬 (price-asc, price-desc, name-asc, name-desc) |
+| `removeDuplicates` | boolean | No | 중복 제거 여부 |
+
+**역할별 최대 제한:**
+
+| 역할 | 최대 개수 |
+|------|----------|
+| free | 5 |
+| pro | 20 |
+| admin | 50 |
+
+### 샘플 파싱
+
+```bash
+POST /api/services/parse-sample
+Content-Type: application/json
+
+{
+  "url": "https://example.com/product/123"
+}
+```
+
+### 셀렉터 최적화 추천
+
+```bash
+POST /api/services/selectors/optimize
+Content-Type: application/json
+
+{
+  "items": [
+    { "title": "상품 A", "price": "10,000원" },
+    { "title": "상품 B", "price": "20,000원" }
+  ],
+  "html": "<html>...</html>"
+}
 ```
 
 ---
