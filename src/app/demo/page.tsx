@@ -61,8 +61,11 @@ export default function DemoPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-onyx-950 via-onyx-900 to-onyx-950">
       {/* 데모 배너 */}
-      <div className="bg-gradient-to-r from-dawn-500 to-purple-500 text-white text-center py-2 text-sm">
-        🎯 데모 모드로 보고 있습니다. 실제 데이터를 사용하려면{' '}
+      <div className="bg-gradient-to-r from-dawn-500 to-purple-500 text-white text-center py-2 text-sm flex items-center justify-center gap-1">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        데모 모드로 보고 있습니다. 실제 데이터를 사용하려면{' '}
         <Link href="/login" className="underline font-semibold hover:text-white/90">
           로그인
         </Link>

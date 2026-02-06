@@ -8,13 +8,6 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback-secret-for-development-only'
 );
 
-// 사용자 역할별 최대 limit 설정
-const ROLE_LIMITS: Record<string, number> = {
-  free: 5,
-  pro: 20,
-  admin: 50,
-};
-
 function isLikelyProductUrl(url: string): boolean {
   return /\/product\//i.test(url)
     || /product_no=/i.test(url)
@@ -36,48 +29,11 @@ function hasPrice(value?: string | null): boolean {
   return /\d/.test(value);
 }
 
-// 가격 문자열에서 숫자 추출
-function extractPriceNumber(price?: string | null): number {
-  if (!price) return 0;
-  const matches = price.replace(/[,]/g, '').match(/[\d.]+/);
-  return matches ? parseFloat(matches[0]) : 0;
-}
-
-// 중복 제거 함수 (URL 기준)
-function removeDuplicates<T extends { url: string }>(items: T[]): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    // URL에서 쿼리 파라미터 제거한 기본 경로로 중복 체크
-    const baseUrl = item.url.split('?')[0];
-    if (seen.has(baseUrl)) return false;
-    seen.add(baseUrl);
-    return true;
-  });
-}
-
-// 정렬 함수
-type SortType = 'none' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
-
-function sortItems<T extends { title?: string | null; price?: string | null }>(
-  items: T[],
-  sortBy: SortType
-): T[] {
-  if (sortBy === 'none') return items;
-  
-  return [...items].sort((a, b) => {
-    switch (sortBy) {
-      case 'price-asc':
-        return extractPriceNumber(a.price) - extractPriceNumber(b.price);
-      case 'price-desc':
-        return extractPriceNumber(b.price) - extractPriceNumber(a.price);
-      case 'name-asc':
-        return (a.title || '').localeCompare(b.title || '', 'ko');
-      case 'name-desc':
-        return (b.title || '').localeCompare(a.title || '', 'ko');
-      default:
-        return 0;
-    }
-  });
+function parsePrice(value?: string | null): number {
+  if (!value) return Infinity;
+  const cleaned = value.replace(/[^\d.]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? Infinity : num;
 }
 
 function extractFromHtml(html: string, selectors: Record<string, string>) {
@@ -119,10 +75,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let userRole = 'free';
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
-      userRole = (payload.role as string) || 'free';
+      await jwtVerify(token, JWT_SECRET);
     } catch {
       return NextResponse.json(
         { error: 'Invalid token' },
@@ -130,12 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url, selectors = {}, limit = 3, sortBy = 'none' as SortType, removeDuplicatesEnabled = true } = await request.json();
-    
-    // 사용자 역할에 따른 최대 limit 적용
-    const maxLimit = ROLE_LIMITS[userRole] || ROLE_LIMITS.free;
-    const effectiveLimit = Math.min(Number(limit), maxLimit);
-    
+    const { url, selectors = {}, limit = 3, sortBy = 'none' } = await request.json();
     if (!url || typeof url !== 'string') {
       return NextResponse.json(
         { error: 'URL is required' },
@@ -174,21 +123,20 @@ export async function POST(request: NextRequest) {
     const links = new Set<string>();
     $('a[href]').each((_, el) => {
       const href = $(el).attr('href');
+      const text = $(el).text().trim();
       if (!href) return;
       try {
         const resolved = new URL(href, origin).toString();
         if (!resolved.startsWith(origin)) return;
         if (!isLikelyProductUrl(resolved)) return;
-        // 현재 페이지와 동일한 URL은 제외
-        if (resolved === parsedUrl.toString()) return;
+        if (!isValidTitle(text)) return;
         links.add(resolved);
       } catch {
         // ignore
       }
     });
 
-    console.log(`Found ${links.size} product links`);
-    const targetLinks = Array.from(links).slice(0, effectiveLimit);
+    const targetLinks = Array.from(links).slice(0, Number(limit));
     const results = [] as Array<{ url: string; title?: string | null; price?: string | null; image?: string | null }>;
 
     for (const link of targetLinks) {
@@ -202,39 +150,28 @@ export async function POST(request: NextRequest) {
         if (!itemResponse.ok) continue;
         const itemHtml = await itemResponse.text();
         const extracted = extractFromHtml(itemHtml, selectors);
-        // 최소한 title 또는 image가 있으면 유효
-        const hasValidTitle = extracted.title && extracted.title.length >= 2;
-        const hasValidImage = Boolean(extracted.image);
-        const valid = hasValidTitle || hasValidImage;
+        const valid = isValidTitle(extracted.title) && (hasPrice(extracted.price) || Boolean(extracted.image));
         if (valid) {
           results.push({ url: link, ...extracted });
         }
-      } catch (err) {
-        console.error(`Error parsing ${link}:`, err);
+      } catch {
         // ignore item errors
       }
     }
 
-    // 중복 제거 적용
-    let processedItems = removeDuplicatesEnabled ? removeDuplicates(results) : results;
-    
-    // 정렬 적용
-    processedItems = sortItems(processedItems, sortBy as SortType);
+    // Sort results based on sortBy parameter
+    if (sortBy === 'price-asc') {
+      results.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
+    } else if (sortBy === 'price-desc') {
+      results.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+    } else if (sortBy === 'name') {
+      results.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko'));
+    }
 
     return NextResponse.json({
       success: true,
       urls: targetLinks,
-      items: processedItems,
-      meta: {
-        requestedLimit: Number(limit),
-        appliedLimit: effectiveLimit,
-        maxLimit,
-        userRole,
-        sortBy,
-        removeDuplicatesEnabled,
-        originalCount: results.length,
-        processedCount: processedItems.length,
-      },
+      items: results,
     });
   } catch (error) {
     console.error('Related parse error:', error);

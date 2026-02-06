@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { DashboardIcon, KeyIcon, ShieldIcon, RefreshIcon, FolderIcon, LockIcon, BoltIcon } from '@/components/brand/FeatureIcons';
+import { DashboardIcon } from '@/components/brand/FeatureIcons';
 
 interface ServiceData {
   name: string;
@@ -112,152 +112,10 @@ export default function ServicesPage() {
   const [isRelatedParsing, setIsRelatedParsing] = useState(false);
   const [relatedParseError, setRelatedParseError] = useState<string | null>(null);
   const [relatedLimit, setRelatedLimit] = useState(3);
-  const [userRole, setUserRole] = useState<'free' | 'pro' | 'admin'>('free');
-  const [relatedSortBy, setRelatedSortBy] = useState<'none' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc'>('none');
-  const [relatedRemoveDuplicates, setRelatedRemoveDuplicates] = useState(true);
-  const [cachedResults, setCachedResults] = useState<Array<{ key: string; url: string; timestamp: number; items: typeof relatedItems }>>([]);
-  const [showCachedResults, setShowCachedResults] = useState(false);
+  const [relatedSortBy, setRelatedSortBy] = useState<'none' | 'price-asc' | 'price-desc' | 'name'>('none');
+  const [relatedSavedAt, setRelatedSavedAt] = useState<string | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizeError, setOptimizeError] = useState<string | null>(null);
-  const [selectorRecommendations, setSelectorRecommendations] = useState<{
-    title?: Array<{ selector: string; score: number; sampleValue?: string }>;
-    price?: Array<{ selector: string; score: number; sampleValue?: string }>;
-    image?: Array<{ selector: string; score: number; sampleValue?: string }>;
-  } | null>(null);
-
-  // localStorage 캐시 키 생성
-  const getCacheKey = (url: string) => {
-    return `related-parse-${btoa(url).slice(0, 20)}`;
-  };
-
-  // 캐시 저장
-  const saveToCache = (url: string, items: typeof relatedItems) => {
-    try {
-      const cacheKey = getCacheKey(url);
-      const cacheData = {
-        url,
-        timestamp: Date.now(),
-        items,
-        sortBy: relatedSortBy,
-        limit: relatedLimit,
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-      loadCachedResults();
-    } catch {
-      // localStorage 오류 무시
-    }
-  };
-
-  // 캐시 불러오기
-  const loadFromCache = (url: string) => {
-    try {
-      const cacheKey = getCacheKey(url);
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const data = JSON.parse(cached);
-        // 24시간 이내 캐시만 유효
-        if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-          return data;
-        }
-        localStorage.removeItem(cacheKey);
-      }
-    } catch {
-      // localStorage 오류 무시
-    }
-    return null;
-  };
-
-  // 모든 캐시 결과 불러오기
-  const loadCachedResults = () => {
-    try {
-      const results: typeof cachedResults = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('related-parse-')) {
-          const cached = localStorage.getItem(key);
-          if (cached) {
-            const data = JSON.parse(cached);
-            // 24시간 이내 캐시만 표시
-            if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-              results.push({ key, ...data });
-            } else {
-              localStorage.removeItem(key);
-            }
-          }
-        }
-      }
-      setCachedResults(results.sort((a, b) => b.timestamp - a.timestamp));
-    } catch {
-      // localStorage 오류 무시
-    }
-  };
-
-  // 캐시 삭제
-  const deleteFromCache = (key: string) => {
-    try {
-      localStorage.removeItem(key);
-      loadCachedResults();
-    } catch {
-      // localStorage 오류 무시
-    }
-  };
-
-  // 캐시에서 복원
-  const restoreFromCache = (cached: typeof cachedResults[0]) => {
-    setRelatedItems(cached.items);
-  };
-
-  // 셀렉터 최적화
-  const handleOptimizeSelectors = async () => {
-    const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
-    if (!targetUrl) {
-      setOptimizeError('상품 URL을 입력해주세요.');
-      return;
-    }
-
-    if (relatedItems.length === 0) {
-      setOptimizeError('먼저 관련 상품 파싱을 실행해주세요.');
-      return;
-    }
-
-    setOptimizeError(null);
-    setIsOptimizing(true);
-    setSelectorRecommendations(null);
-
-    try {
-      const response = await fetch('/api/services/selectors/optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: targetUrl,
-          parsedItems: relatedItems,
-          currentSelectors: serviceData.productPage.selectors,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setOptimizeError(data?.error || '셀렉터 최적화에 실패했습니다.');
-        return;
-      }
-
-      setSelectorRecommendations(data.recommendations);
-    } catch {
-      setOptimizeError('셀렉터 최적화에 실패했습니다.');
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
-
-  // 추천 셀렉터 적용
-  const applyRecommendedSelector = (field: keyof ProductPageSelectors, selector: string) => {
-    updateProductSelector(field, selector);
-  };
-
-  // 컴포넌트 마운트 시 캐시 로드
-  useEffect(() => {
-    loadCachedResults();
-  }, []);
+  const [optimizeResult, setOptimizeResult] = useState<{ improvements: string[]; hasChanges: boolean } | null>(null);
 
   const updateField = <K extends keyof ServiceData>(field: K, value: ServiceData[K]) => {
     setServiceData(prev => ({ ...prev, [field]: value }));
@@ -668,21 +526,11 @@ Generated via https://eoynx.com`;
     }
   };
 
-  const handleRelatedParse = async (useCache = true) => {
+  const handleRelatedParse = async () => {
     const targetUrl = serviceData.productPage.sampleUrl || autoUrl;
     if (!targetUrl) {
       setRelatedParseError('상품 URL을 입력해주세요.');
       return;
-    }
-
-    // 캐시 확인 (useCache가 true일 때만)
-    if (useCache) {
-      const cached = loadFromCache(targetUrl);
-      if (cached) {
-        setRelatedItems(cached.items);
-        setRelatedParseError(null);
-        return;
-      }
     }
 
     setRelatedParseError(null);
@@ -696,7 +544,6 @@ Generated via https://eoynx.com`;
           selectors: serviceData.productPage.selectors,
           limit: relatedLimit,
           sortBy: relatedSortBy,
-          removeDuplicatesEnabled: relatedRemoveDuplicates,
         }),
       });
 
@@ -706,12 +553,12 @@ Generated via https://eoynx.com`;
         return;
       }
 
-      const items = data.items || [];
-      setRelatedItems(items);
-      
-      // 결과를 캐시에 저장
-      if (items.length > 0) {
-        saveToCache(targetUrl, items);
+      setRelatedItems(data.items || []);
+      // Auto-save to localStorage
+      if (data.items?.length > 0) {
+        const savedAt = new Date().toISOString();
+        localStorage.setItem('relatedItems', JSON.stringify({ items: data.items, savedAt }));
+        setRelatedSavedAt(savedAt);
       }
     } catch {
       setRelatedParseError('관련 상품 파싱에 실패했습니다.');
@@ -721,24 +568,77 @@ Generated via https://eoynx.com`;
   };
 
   useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
-          const role = data?.user?.role || 'free';
-          setUserRole(role);
-          // Pro/Admin은 기본 5개, Free는 3개
-          if (role === 'pro' || role === 'admin') {
-            setRelatedLimit(5);
-          }
+    // Load saved related items from localStorage on mount
+    try {
+      const saved = localStorage.getItem('relatedItems');
+      if (saved) {
+        const { items, savedAt } = JSON.parse(saved);
+        if (items?.length > 0) {
+          setRelatedItems(items);
+          setRelatedSavedAt(savedAt);
         }
-      } catch {
-        // 기본값 유지
       }
-    };
-    fetchUserRole();
+    } catch {
+      // ignore parse errors
+    }
   }, []);
+
+  const clearRelatedItems = () => {
+    setRelatedItems([]);
+    setRelatedSavedAt(null);
+    localStorage.removeItem('relatedItems');
+  };
+
+  const handleOptimizeSelectors = async () => {
+    const urls = relatedItems.map(item => item.url).filter(Boolean);
+    if (urls.length === 0) {
+      setRelatedParseError('최적화할 관련 상품 URL이 없습니다. 먼저 관련 상품을 파싱해주세요.');
+      return;
+    }
+
+    setIsOptimizing(true);
+    setOptimizeResult(null);
+    try {
+      const response = await fetch('/api/services/optimize-selectors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls,
+          currentSelectors: serviceData.productPage.selectors,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.optimizedSelectors) {
+        setRelatedParseError(data?.error || '셀렉터 최적화에 실패했습니다.');
+        return;
+      }
+
+      // Apply optimized selectors
+      setServiceData(prev => ({
+        ...prev,
+        productPage: {
+          ...prev.productPage,
+          selectors: {
+            ...prev.productPage.selectors,
+            title: data.optimizedSelectors.title || prev.productPage.selectors.title,
+            price: data.optimizedSelectors.price || prev.productPage.selectors.price,
+            image: data.optimizedSelectors.image || prev.productPage.selectors.image,
+            description: data.optimizedSelectors.description || prev.productPage.selectors.description,
+          },
+        },
+      }));
+
+      setOptimizeResult({
+        improvements: data.improvements || [],
+        hasChanges: data.hasChanges || false,
+      });
+    } catch {
+      setRelatedParseError('셀렉터 최적화에 실패했습니다.');
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   useEffect(() => {
     const editId = searchParams.get('edit');
@@ -1093,89 +993,46 @@ Generated via https://eoynx.com`;
               >
                 {isRelatedLoading ? '관련 상품 추출 중...' : '관련 상품 추출'}
               </button>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleRelatedParse(true)}
+                  onClick={handleRelatedParse}
                   disabled={isRelatedParsing}
                   className="px-3 py-1.5 text-xs bg-sky-500/20 text-sky-300 hover:text-sky-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {isRelatedParsing ? '관련 상품 파싱 중...' : '관련 상품 파싱'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleRelatedParse(false)}
-                  disabled={isRelatedParsing}
-                  className="px-2 py-1.5 text-xs bg-orange-500/20 text-orange-300 hover:text-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
-                  title="캐시를 무시하고 새로 파싱"
-                >
-                  <RefreshIcon size={14} />
-                </button>
-                {cachedResults.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCachedResults(!showCachedResults)}
-                    className="px-2 py-1.5 text-xs bg-violet-500/20 text-violet-300 hover:text-violet-200 rounded-lg transition-colors flex items-center gap-1"
-                    title={`저장된 결과 ${cachedResults.length}개`}
-                  >
-                    <FolderIcon size={14} /> {cachedResults.length}
-                  </button>
-                )}
                 <select
                   value={relatedLimit}
                   onChange={(e) => setRelatedLimit(Number(e.target.value))}
-                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-700 text-onyx-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  title="관련 상품 개수"
+                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-600 text-onyx-200 rounded-lg"
                 >
                   <option value={3}>3개</option>
                   <option value={5}>5개</option>
-                  {(userRole === 'pro' || userRole === 'admin') && (
-                    <>
-                      <option value={10}>10개</option>
-                      <option value={15}>15개</option>
-                      <option value={20}>20개 (Pro)</option>
-                    </>
-                  )}
+                  <option value={10}>10개</option>
+                  <option value={15}>15개</option>
+                  <option value={20}>20개</option>
                 </select>
                 <select
                   value={relatedSortBy}
-                  onChange={(e) => setRelatedSortBy(e.target.value as typeof relatedSortBy)}
-                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-700 text-onyx-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  title="정렬 옵션"
+                  onChange={(e) => setRelatedSortBy(e.target.value as 'none' | 'price-asc' | 'price-desc' | 'name')}
+                  className="px-2 py-1.5 text-xs bg-onyx-800 border border-onyx-600 text-onyx-200 rounded-lg"
                 >
                   <option value="none">정렬 없음</option>
                   <option value="price-asc">가격 낮은순</option>
                   <option value="price-desc">가격 높은순</option>
-                  <option value="name-asc">이름 오름차순</option>
-                  <option value="name-desc">이름 내림차순</option>
+                  <option value="name">이름순</option>
                 </select>
-                <label className="flex items-center gap-1 text-xs text-onyx-400 cursor-pointer" title="URL 기준 중복 상품 제거">
-                  <input
-                    type="checkbox"
-                    checked={relatedRemoveDuplicates}
-                    onChange={(e) => setRelatedRemoveDuplicates(e.target.checked)}
-                    className="w-3 h-3 rounded border-onyx-600 bg-onyx-800 text-sky-500 focus:ring-sky-500"
-                  />
-                  중복제거
-                </label>
-                {userRole === 'free' && (
-                  <span className="text-amber-400/80" title="Pro 요금제로 업그레이드하면 최대 20개까지 파싱 가능">
-                    <LockIcon size={12} />
-                  </span>
-                )}
               </div>
-              {relatedItems.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleOptimizeSelectors}
-                  disabled={isOptimizing}
-                  className="px-3 py-1.5 text-xs bg-amber-500/20 text-amber-300 hover:text-amber-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-                  title="파싱 결과 기반 셀렉터 최적화"
-                >
-                  <BoltIcon size={14} />
-                  {isOptimizing ? '분석 중...' : '셀렉터 최적화'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleOptimizeSelectors}
+                disabled={isOptimizing || relatedItems.length === 0}
+                className="px-3 py-1.5 text-xs bg-amber-500/20 text-amber-300 hover:text-amber-200 rounded-lg transition-colors disabled:opacity-50"
+                title={relatedItems.length === 0 ? '관련 상품 파싱 후 사용 가능' : '파싱된 상품 기반으로 셀렉터 최적화'}
+              >
+                {isOptimizing ? '최적화 중...' : '셀렉터 자동 최적화'}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowAdvancedProduct(prev => !prev)}
@@ -1196,113 +1053,30 @@ Generated via https://eoynx.com`;
             {relatedParseError && (
               <p className="text-sm text-red-400 mb-3">{relatedParseError}</p>
             )}
-            {optimizeError && (
-              <p className="text-sm text-red-400 mb-3">{optimizeError}</p>
-            )}
-            {selectorRecommendations && (
-              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-amber-200 flex items-center gap-1.5">
-                    <BoltIcon size={16} />
-                    셀렉터 최적화 추천
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setSelectorRecommendations(null)}
-                    className="text-xs text-amber-400 hover:text-amber-300"
-                  >
-                    닫기
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {(['title', 'price', 'image'] as const).map((field) => {
-                    const recommendations = selectorRecommendations[field];
-                    if (!recommendations || recommendations.length === 0) return null;
-                    
-                    return (
-                      <div key={field} className="bg-onyx-800/50 rounded-lg p-3">
-                        <div className="text-xs text-onyx-400 mb-2">
-                          {field === 'title' ? '상품명' : field === 'price' ? '가격' : '이미지'}
-                        </div>
-                        <div className="space-y-1">
-                          {recommendations.slice(0, 3).map((rec, idx) => (
-                            <div key={idx} className="flex items-center justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <code className="text-xs text-amber-300 bg-onyx-700/50 px-1.5 py-0.5 rounded">
-                                  {rec.selector}
-                                </code>
-                                {rec.sampleValue && (
-                                  <span className="text-[10px] text-onyx-500 ml-2 truncate">
-                                    ({rec.sampleValue.slice(0, 30)}{rec.sampleValue.length > 30 ? '...' : ''})
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-onyx-500">
-                                  {Math.round(rec.score * 100)}%
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => applyRecommendedSelector(field, rec.selector)}
-                                  className="px-2 py-0.5 text-[10px] bg-amber-500/30 text-amber-200 hover:bg-amber-500/50 rounded"
-                                >
-                                  적용
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {showCachedResults && cachedResults.length > 0 && (
-              <div className="bg-violet-900/20 border border-violet-700/50 rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-violet-200 flex items-center gap-1.5">
-                    <FolderIcon size={16} />
-                    저장된 파싱 결과 ({cachedResults.length}개)
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowCachedResults(false)}
-                    className="text-xs text-violet-400 hover:text-violet-300"
-                  >
-                    닫기
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-60 overflow-auto">
-                  {cachedResults.map((cached) => (
-                    <div key={cached.key} className="flex items-center justify-between bg-onyx-800/50 rounded-lg px-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs text-onyx-300 truncate" title={cached.url}>
-                          {cached.url}
-                        </div>
-                        <div className="text-[10px] text-onyx-500">
-                          {new Date(cached.timestamp).toLocaleString('ko-KR')} · {cached.items.length}개 상품
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2">
-                        <button
-                          type="button"
-                          onClick={() => restoreFromCache(cached)}
-                          className="px-2 py-1 text-[10px] bg-violet-500/20 text-violet-300 hover:text-violet-200 rounded"
-                        >
-                          불러오기
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteFromCache(cached.key)}
-                          className="px-2 py-1 text-[10px] bg-red-500/20 text-red-300 hover:text-red-200 rounded"
-                        >
-                          삭제
-                        </button>
-                      </div>
+            {optimizeResult && (
+              <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3 mb-3">
+                {optimizeResult.hasChanges ? (
+                  <>
+                    <div className="text-sm text-amber-300 font-medium mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                      셀렉터가 최적화되었습니다
                     </div>
-                  ))}
-                </div>
+                    <ul className="text-xs text-amber-200/80 space-y-1">
+                      {optimizeResult.improvements.map((imp, i) => (
+                        <li key={i}>• {imp}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <div className="text-sm text-amber-300 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    현재 셀렉터가 이미 최적 상태입니다
+                  </div>
+                )}
               </div>
             )}
             {relatedLinks.length > 0 && (
@@ -1319,7 +1093,23 @@ Generated via https://eoynx.com`;
             )}
             {relatedItems.length > 0 && (
               <div className="bg-onyx-800/50 border border-onyx-700 rounded-lg p-4 mb-4">
-                <h3 className="text-sm font-semibold text-onyx-200 mb-2">관련 상품 파싱 결과</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-onyx-200">관련 상품 파싱 결과</h3>
+                  <div className="flex items-center gap-2">
+                    {relatedSavedAt && (
+                      <span className="text-xs text-onyx-500">
+                        저장됨: {new Date(relatedSavedAt).toLocaleString('ko-KR')}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={clearRelatedItems}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {relatedItems.map((item) => (
                     <div key={item.url} className="flex items-center gap-3">
@@ -1656,9 +1446,12 @@ Generated via https://eoynx.com`;
           <div className="flex gap-2">
             <button
               onClick={() => navigator.clipboard.writeText(generatePreview())}
-              className="flex-1 py-2 bg-onyx-800 hover:bg-onyx-700 text-onyx-300 rounded-lg transition-colors text-sm"
+              className="flex-1 py-2 bg-onyx-800 hover:bg-onyx-700 text-onyx-300 rounded-lg transition-colors text-sm flex items-center justify-center gap-1"
             >
-              📋 복사하기
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              복사하기
             </button>
             <button
               onClick={() => {
@@ -1669,9 +1462,12 @@ Generated via https://eoynx.com`;
                 a.download = previewMode === 'json-ld' ? 'agent-data.json' : previewMode;
                 a.click();
               }}
-              className="flex-1 py-2 bg-onyx-800 hover:bg-onyx-700 text-onyx-300 rounded-lg transition-colors text-sm"
+              className="flex-1 py-2 bg-onyx-800 hover:bg-onyx-700 text-onyx-300 rounded-lg transition-colors text-sm flex items-center justify-center gap-1"
             >
-              ⬇️ 다운로드
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              다운로드
             </button>
           </div>
         </div>

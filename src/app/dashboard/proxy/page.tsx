@@ -175,7 +175,12 @@ ${result.links.slice(0, 10).map(l => `- ${l.text}: ${l.href}`).join('\n')}` : ''
       {/* 에러 */}
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <p className="text-red-400 text-sm">❌ {error}</p>
+          <p className="text-red-400 text-sm flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            {error}
+          </p>
         </div>
       )}
 
@@ -304,9 +309,12 @@ ${result.links.slice(0, 10).map(l => `- ${l.text}: ${l.href}`).join('\n')}` : ''
                 <div className="flex justify-end mb-2">
                   <button
                     onClick={() => navigator.clipboard.writeText(generateAiTxt())}
-                    className="text-xs text-dawn-400 hover:text-dawn-300"
+                    className="text-xs text-dawn-400 hover:text-dawn-300 flex items-center gap-1"
                   >
-                    📋 복사
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    복사
                   </button>
                 </div>
                 <pre className="text-sm text-onyx-300 whitespace-pre-wrap font-mono max-h-[500px] overflow-auto">
@@ -321,7 +329,11 @@ ${result.links.slice(0, 10).map(l => `- ${l.text}: ${l.href}`).join('\n')}` : ''
       {/* 사용 안내 */}
       {!result && !loading && !error && (
         <div className="bg-onyx-900/30 border border-onyx-800 border-dashed rounded-xl p-8 text-center">
-          <div className="text-4xl mb-4">🌐</div>
+          <div className="text-4xl mb-4">
+            <svg className="w-12 h-12 mx-auto text-onyx-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+            </svg>
+          </div>
           <h3 className="text-lg font-semibold text-onyx-200 mb-2">URL을 입력하세요</h3>
           <p className="text-sm text-onyx-500 max-w-md mx-auto">
             웹페이지 URL을 입력하면 광고와 불필요한 요소를 제거하고<br/>

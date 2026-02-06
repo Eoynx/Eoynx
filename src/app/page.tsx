@@ -214,7 +214,10 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-lg font-semibold mb-4 text-onyx-300 flex items-center gap-2">
-                <span className="text-dawn-400">✓</span> Eoynx 게이트웨이 요청
+                <svg className="w-5 h-5 text-dawn-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Eoynx 게이트웨이 요청
               </h3>
               <div className="bg-onyx-900 rounded-xl p-6 border border-dawn-500/30">
                 <pre className="text-sm text-onyx-300 overflow-x-auto">{`GET https://example.com/products/123/agent

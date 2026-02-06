@@ -124,4 +124,102 @@ export function EoynxHeroLogo({ className = '' }: { className?: string }) {
   );
 }
 
-export default { SunriseIcon, EoynxLogo, EoynxIconOnly, EoynxHeroLogo };
+/**
+ * 브랜드 텍스트 로고 SVG (이미지 로고 스타일)
+ * @param showSubtitle - "AI Agent Gateway" 서브타이틀 표시 여부
+ */
+export function EoynxTextLogo({ 
+  className = '', 
+  width = 200, 
+  showSubtitle = true 
+}: { 
+  className?: string; 
+  width?: number; 
+  showSubtitle?: boolean;
+}) {
+  const height = showSubtitle ? width * 0.4 : width * 0.28;
+  const navyBlue = '#1e3a5f';
+  const gray = '#6b7280';
+  
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={showSubtitle ? "0 0 200 80" : "0 0 200 56"}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* E */}
+      <path
+        d="M10 12h22v6h-14v8h12v6h-12v10h14v6H10V12z"
+        fill={navyBlue}
+      />
+      {/* o */}
+      <path
+        d="M42 24c0-7.2 5.8-13 13-13s13 5.8 13 13v12c0 7.2-5.8 13-13 13s-13-5.8-13-13V24zm8 0v12c0 2.8 2.2 5 5 5s5-2.2 5-5V24c0-2.8-2.2-5-5-5s-5 2.2-5 5z"
+        fill={navyBlue}
+      />
+      {/* y */}
+      <path
+        d="M76 12l10 20 10-20h9l-14 28v8h-8v-8L69 12h7z"
+        fill={navyBlue}
+      />
+      {/* n */}
+      <path
+        d="M112 12h8v6c2-4 5.5-7 10-7 7 0 12 5 12 12v25h-8V24c0-4-3-7-7-7s-7 3-7 7v24h-8V12z"
+        fill={navyBlue}
+      />
+      {/* x - 특별한 디자인 */}
+      <path
+        d="M152 12l11 18-11 18h9l7-11 7 11h9l-11-18 11-18h-9l-7 11-7-11h-9z"
+        fill={navyBlue}
+      />
+      
+      {/* AI Agent Gateway 서브타이틀 */}
+      {showSubtitle && (
+        <text
+          x="100"
+          y="68"
+          textAnchor="middle"
+          fill={gray}
+          fontSize="12"
+          fontFamily="system-ui, -apple-system, sans-serif"
+          fontWeight="400"
+          letterSpacing="0.5"
+        >
+          AI Agent Gateway
+        </text>
+      )}
+    </svg>
+  );
+}
+
+/**
+ * 심플한 텍스트 로고 (CSS 기반)
+ */
+export function EoynxBrandLogo({ 
+  className = '', 
+  showSubtitle = true 
+}: { 
+  className?: string; 
+  showSubtitle?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col ${className}`}>
+      <span 
+        className="text-3xl font-bold tracking-tight"
+        style={{ color: '#1e3a5f', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+      >
+        Eoynx
+      </span>
+      {showSubtitle && (
+        <span className="text-sm text-gray-500 tracking-wide">
+          AI Agent Gateway
+        </span>
+      )}
+    </div>
+  );
+}
+
+export default { SunriseIcon, EoynxLogo, EoynxIconOnly, EoynxHeroLogo, EoynxTextLogo, EoynxBrandLogo };

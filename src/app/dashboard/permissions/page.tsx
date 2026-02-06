@@ -209,7 +209,9 @@ export default function PermissionsPage() {
                         return (
                           <td key={p.id} className="text-center py-3 px-2">
                             {hasPermission ? (
-                              <span className="text-green-500">✓</span>
+                              <svg className="w-5 h-5 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
                             ) : (
                               <span className="text-gray-300">-</span>
                             )}

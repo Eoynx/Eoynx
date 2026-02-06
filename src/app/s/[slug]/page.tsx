@@ -95,7 +95,9 @@ export default function ServicePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-onyx-900 via-onyx-800 to-onyx-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔍</div>
+          <svg className="w-16 h-16 mx-auto mb-4 text-onyx-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
           <h1 className="text-2xl font-bold text-onyx-100 mb-2">서비스를 찾을 수 없습니다</h1>
           <p className="text-onyx-400 mb-6">{error || '요청하신 서비스가 존재하지 않습니다.'}</p>
           <Link href="/" className="text-dawn-400 hover:text-dawn-300">
@@ -208,7 +210,12 @@ export default function ServicePage() {
                       {ep.description && <div className="text-xs text-onyx-400 mt-1">{ep.description}</div>}
                     </div>
                     {ep.auth && (
-                      <span className="text-xs bg-dawn-500/20 text-dawn-400 px-2 py-1 rounded">🔒 인증필요</span>
+                      <span className="text-xs bg-dawn-500/20 text-dawn-400 px-2 py-1 rounded flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        인증필요
+                      </span>
                     )}
                   </div>
                 ))}
@@ -330,9 +337,12 @@ export default function ServicePage() {
               <h2 className="text-lg font-semibold text-onyx-100">ai.txt</h2>
               <button
                 onClick={() => navigator.clipboard.writeText(service.ai_txt || '')}
-                className="text-sm text-dawn-400 hover:text-dawn-300"
+                className="flex items-center gap-1 text-sm text-dawn-400 hover:text-dawn-300"
               >
-                📋 복사
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                복사
               </button>
             </div>
             <pre className="text-sm text-onyx-300 font-mono whitespace-pre-wrap bg-onyx-800 p-4 rounded-lg overflow-auto max-h-[600px]">
@@ -347,9 +357,12 @@ export default function ServicePage() {
               <h2 className="text-lg font-semibold text-onyx-100">JSON-LD</h2>
               <button
                 onClick={() => navigator.clipboard.writeText(JSON.stringify(service.json_ld, null, 2))}
-                className="text-sm text-dawn-400 hover:text-dawn-300"
+                className="flex items-center gap-1 text-sm text-dawn-400 hover:text-dawn-300"
               >
-                📋 복사
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                복사
               </button>
             </div>
             <pre className="text-sm text-onyx-300 font-mono whitespace-pre-wrap bg-onyx-800 p-4 rounded-lg overflow-auto max-h-[600px]">

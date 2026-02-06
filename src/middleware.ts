@@ -176,8 +176,7 @@ export async function middleware(request: NextRequest) {
   // 4. 토큰 검증 (보호된 엔드포인트인 경우)
   const isProtectedEndpoint = pathname.includes('/api/agent/') 
     && !pathname.endsWith('/info')
-    && !pathname.endsWith('/health')
-    && !pathname.includes('/auth/token');  // 토큰 발급 API 예외
+    && !pathname.endsWith('/health');
     
   if (isProtectedEndpoint && !agentToken) {
     return createErrorResponse(401, 'TOKEN_REQUIRED', 
@@ -288,28 +287,6 @@ async function validateToken(token: string): Promise<{ valid: boolean; error?: s
   
   if (!token || token.length < 10) {
     return { valid: false, error: 'Token too short' };
-  }
-
-  // Agent Gateway 토큰 형식 검증 (ag_xxx)
-  if (token.startsWith('ag_')) {
-    try {
-      const base64Part = token.slice(3);
-      const decoded = JSON.parse(atob(base64Part));
-      
-      // 만료 시간 확인
-      if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-        return { valid: false, error: 'Token expired' };
-      }
-      
-      // 필수 필드 확인
-      if (!decoded.agentId) {
-        return { valid: false, error: 'Invalid agent token' };
-      }
-      
-      return { valid: true };
-    } catch {
-      return { valid: false, error: 'Invalid agent token format' };
-    }
   }
 
   // JWT 형식 검증

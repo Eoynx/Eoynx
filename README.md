@@ -52,39 +52,12 @@ Claude, GPT 등 AI 에이전트가 표준화된 프로토콜로 도구를 호출
 | **Runtime** | Edge Runtime (전 세계 빠른 응답) |
 | **Language** | TypeScript 5.3 (Strict Mode) |
 | **Styling** | Tailwind CSS 3.4 |
-| **Database** | Supabase (PostgreSQL), Cloudflare D1 |
+| **Database** | Supabase (PostgreSQL) |
 | **Data Format** | JSON-LD, Schema.org |
 | **Auth** | JWT (jose 라이브러리) |
 | **Protocol** | MCP (Model Context Protocol) |
 | **Testing** | Jest + Testing Library |
-| **Deployment** | Vercel Edge Functions, Cloudflare Workers |
-
-## 🌐 서버 아키텍처
-
-```
-                    ┌─────────────────────────────────────────────┐
-                    │              Eoynx Platform                 │
-                    └─────────────────────────────────────────────┘
-                                        │
-              ┌─────────────────────────┴─────────────────────────┐
-              │                                                   │
-    ┌─────────▼─────────┐                           ┌─────────────▼─────────┐
-    │   Next.js App     │                           │   Edge Gateway        │
-    │   (eoynx.com)     │                           │   (api.eoynx.com)     │
-    │                   │                           │                       │
-    │   • 이커머스 MCP   │                           │   • 범용 웹 스크래핑   │
-    │   • 사용자 인증    │                           │   • 인증 불필요       │
-    │   • 대시보드       │                           │   • 글로벌 엣지       │
-    │                   │                           │                       │
-    │   Vercel          │                           │   Cloudflare Workers  │
-    └───────────────────┘                           └───────────────────────┘
-```
-
-| 서버 | URL | 용도 | 인증 |
-|------|-----|------|------|
-| **Next.js MCP** | `eoynx.com/api/agent/mcp` | 이커머스 기능 (검색, 장바구니, 주문) | X-Agent-Token 필요 |
-| **Edge MCP** | `api.eoynx.com/mcp` | 범용 웹 스크래핑/파싱 | 불필요 |
-| **MCP Alias** | `mcp.eoynx.com/mcp` | Edge MCP 별칭 | 불필요 |
+| **Deployment** | Vercel Edge Functions |
 
 ## 🚀 빠른 시작
 
@@ -182,43 +155,14 @@ Authorization: Bearer <token>
 ```
 
 ### 🤖 MCP (Model Context Protocol)
-
-**Next.js MCP (인증 필요):**
 ```http
 POST /api/agent/mcp
-X-Agent-Token: ag_xxx...
 {
   "jsonrpc": "2.0",
   "id": 1,
   "method": "tools/list"
 }
 ```
-
-**Edge MCP (인증 불필요):**
-```http
-POST https://api.eoynx.com/mcp
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "extract_links",
-    "arguments": { "url": "https://example.com" }
-  }
-}
-```
-
-### MCP 도구 비교
-
-| Next.js MCP | Edge MCP |
-|-------------|----------|
-| `search_products` | `fetch_url` |
-| `get_product_details` | `parse_product` |
-| `add_to_cart` | `extract_links` |
-| `view_cart` | `extract_text` |
-| `create_order` | |
-| `get_site_status` | |
-| `subscribe_notification` | |
 
 ### 📡 실시간 스트리밍 (SSE)
 ```http
@@ -291,9 +235,6 @@ npm run test:coverage
 - [x] ~~Supabase 데이터베이스 연동~~
 - [x] ~~Jest 테스트 코드~~
 - [x] ~~Vercel 배포 설정~~
-- [x] ~~Cloudflare Edge Gateway 배포~~
-- [x] ~~Edge MCP 도구 구현 (fetch_url, parse_product, extract_links, extract_text)~~
-- [x] ~~서비스 관련 상품 파싱 기능~~
 - [ ] 웹소켓 실시간 통신
 - [ ] 다국어 프롬프트 지원
 - [ ] Agent Reputation 고도화
@@ -301,15 +242,8 @@ npm run test:coverage
 
 ## 📚 문서
 
-### 📖 시작하기
-- [비개발자를 위한 소개](docs/INTRO_FOR_BEGINNERS.md) - Eoynx가 뭔지 쉽게 설명
-
-### 🔧 개발자 가이드
 - [API 가이드](docs/API_GUIDE.md) - 상세 API 레퍼런스
 - [MCP 가이드](docs/MCP_GUIDE.md) - Model Context Protocol 통합
-- [Cloudflare Edge 가이드](docs/CLOUDFLARE_EDGE_GUIDE.md) - Edge Gateway 설정 및 배포
-- [배포 가이드](docs/DEPLOY_GUIDE.md) - Vercel, Cloudflare 배포 방법
-- [환경 설정 가이드](docs/ENV_SETUP.md) - 환경 변수 설정
 - [기여 가이드](docs/CONTRIBUTING.md) - 프로젝트 기여 방법
 
 ## 📄 라이선스
