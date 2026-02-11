@@ -3,7 +3,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 
 export const runtime = 'edge';
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     

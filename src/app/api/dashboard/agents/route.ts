@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/client';
-import type { ApiResponse, AgentProvider } from '@/types';
+import type { ApiResponse } from '@/types';
 
 export const runtime = 'edge';
 

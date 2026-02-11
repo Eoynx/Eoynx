@@ -1,0 +1,110 @@
+[
+  {
+    "name": "Musinsa",
+    "name_ko": "무신사",
+    "description": "Korea largest online fashion select shop",
+    "description_ko": "대한민국 대표 패션 편집샵",
+    "homepage": "https://www.musinsa.com",
+    "api_base": "https://www.musinsa.com",
+    "category": "fashion",
+    "product_page": {
+      "urlPattern": "/products/{id}",
+      "sampleUrl": "https://www.musinsa.com/products/4086629",
+      "dataSource": "json-ld"
+    },
+    "category_page": {
+      "urlPattern": "/category/{id}",
+      "sampleUrl": "https://www.musinsa.com/category/001006"
+    }
+  },
+  {
+    "name": "Gmarket",
+    "name_ko": "G마켓",
+    "description": "Korea popular online marketplace",
+    "description_ko": "대한민국 대표 온라인 마켓플레이스",
+    "homepage": "https://www.gmarket.co.kr",
+    "api_base": "https://www.gmarket.co.kr",
+    "category": "marketplace",
+    "product_page": {
+      "urlPattern": "/Item?itemno={id}",
+      "sampleUrl": "https://www.gmarket.co.kr/Item?itemno=123456789",
+      "dataSource": "dom"
+    },
+    "category_page": {
+      "urlPattern": "/search?keyword={query}",
+      "sampleUrl": "https://browse.gmarket.co.kr/search?keyword=니트"
+    }
+  },
+  {
+    "name": "SSG",
+    "name_ko": "신세계몰",
+    "description": "Shinsegae online shopping mall",
+    "description_ko": "신세계 온라인 쇼핑몰",
+    "homepage": "https://www.ssg.com",
+    "api_base": "https://www.ssg.com",
+    "category": "department",
+    "product_page": {
+      "urlPattern": "/item/itemView.ssg?itemId={id}",
+      "sampleUrl": "https://www.ssg.com/item/itemView.ssg?itemId=1000012345",
+      "dataSource": "dom"
+    },
+    "category_page": {
+      "urlPattern": "/search.ssg?target=all&query={query}",
+      "sampleUrl": "https://www.ssg.com/search.ssg?target=all&query=니트"
+    }
+  },
+  {
+    "name": "WConcept",
+    "name_ko": "W컨셉",
+    "description": "Premium fashion select shop",
+    "description_ko": "프리미엄 패션 편집샵",
+    "homepage": "https://www.wconcept.co.kr",
+    "api_base": "https://www.wconcept.co.kr",
+    "category": "fashion",
+    "product_page": {
+      "urlPattern": "/Product/{id}",
+      "sampleUrl": "https://www.wconcept.co.kr/Product/123456",
+      "dataSource": "json-ld"
+    },
+    "category_page": {
+      "urlPattern": "/Women/Product?filterID2={id}",
+      "sampleUrl": "https://www.wconcept.co.kr/Women/Product?filterID2=3405"
+    }
+  },
+  {
+    "name": "11Street",
+    "name_ko": "11번가",
+    "description": "Korea major online marketplace",
+    "description_ko": "대한민국 대표 온라인 쇼핑몰",
+    "homepage": "https://www.11st.co.kr",
+    "api_base": "https://www.11st.co.kr",
+    "category": "marketplace",
+    "product_page": {
+      "urlPattern": "/products/{id}",
+      "sampleUrl": "https://www.11st.co.kr/products/123456789",
+      "dataSource": "json-ld"
+    },
+    "category_page": {
+      "urlPattern": "/Search.tmall?kwd={query}",
+      "sampleUrl": "https://search.11st.co.kr/Search.tmall?kwd=니트"
+    }
+  },
+  {
+    "name": "Hiver",
+    "name_ko": "하이버",
+    "description": "Mens fashion select shop",
+    "description_ko": "남성 패션 편집샵",
+    "homepage": "https://www.hiver.co.kr",
+    "api_base": "https://www.hiver.co.kr",
+    "category": "fashion",
+    "product_page": {
+      "urlPattern": "/goods/{id}",
+      "sampleUrl": "https://www.hiver.co.kr/goods/123456",
+      "dataSource": "dom"
+    },
+    "category_page": {
+      "urlPattern": "/category/list/{id}/",
+      "sampleUrl": "https://www.hiver.co.kr/category/list/10211/"
+    }
+  }
+]

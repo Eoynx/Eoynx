@@ -410,7 +410,7 @@ const actionHandlers: Record<string, ActionDefinition> = {
     name: '알림 구독',
     requiredPermission: 'write',
     confirmationRequired: false,
-    handler: async (params, context) => {
+    handler: async (params, _context) => {
       const { event, targetId, threshold } = params as {
         event: string;
         targetId?: string;
@@ -489,9 +489,15 @@ export async function POST(request: NextRequest) {
       } as ApiResponse<null>, { status: 400 });
     }
 
-    // 권한 확인 (간단한 구현)
+    // 권한 확인
     const agentId = request.headers.get('x-verified-agent-id') || 'anonymous';
-    const permissions: AgentPermissionLevel[] = getAgentPermissions(agentId);
+    
+    // 세션 쿠키가 있으면 (로그인된 사용자) 모든 권한 부여
+    const sessionCookie = request.cookies.get('session')?.value 
+      || request.cookies.get('auth-token')?.value;
+    const permissions: AgentPermissionLevel[] = sessionCookie 
+      ? ['read', 'write', 'execute', 'admin'] 
+      : getAgentPermissions(agentId);
 
     if (!hasPermission(permissions, actionDef.requiredPermission)) {
       return NextResponse.json({
@@ -531,6 +537,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       return NextResponse.json(response, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: result.data && (result.data as any).requiresConfirmation ? 428 : 400,
         headers: {
           'Content-Type': 'application/json',

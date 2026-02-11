@@ -1,0 +1,1 @@
+{"name":"musinsa","description":"Korea largest online fashion store","homepage":"https://www.musinsa.com","apiBase":"https://www.musinsa.com","authType":"none","rateLimit":"100/min","contactEmail":"test@test.com","endpoints":[{"id":"search","path":"/search/goods","method":"GET","description":"Search products","auth":false,"params":"keyword"}]}

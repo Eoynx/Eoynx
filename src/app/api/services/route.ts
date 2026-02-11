@@ -29,6 +29,7 @@ interface ServiceData {
   descriptionKo?: string;
   homepage: string;
   apiBase: string;
+  autoParse?: boolean; // true면 sampleUrl을 자동 파싱
   productPage?: {
     urlPattern?: string;
     sampleUrl?: string;
@@ -46,6 +47,18 @@ interface ServiceData {
       reviewCount?: string;
     };
     notes?: string;
+    // 자동 파싱 결과 저장
+    parsedData?: {
+      jsonLd?: object[];
+      sampleProducts?: {
+        name: string;
+        price?: string;
+        image?: string;
+        url?: string;
+      }[];
+      meta?: Record<string, string>;
+      parsedAt?: string;
+    };
   };
   endpoints: {
     id: string;
@@ -204,7 +217,7 @@ function extractProductPage(jsonLd: unknown): ServiceData['productPage'] | undef
 
 export async function POST(request: NextRequest) {
   try {
-    const serviceData: ServiceData = await request.json();
+    let serviceData: ServiceData = await request.json();
     
     // 현재 사용자 ID 가져오기
     const currentUser = await getCurrentUser(request);
@@ -224,6 +237,53 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: name, apiBase, description' },
         { status: 400 }
       );
+    }
+
+    // 자동 파싱: sampleUrl이 있고 autoParse가 true면 내부 API 호출
+    if (serviceData.autoParse && serviceData.productPage?.sampleUrl) {
+      try {
+        const baseUrl = request.headers.get('host') || 'localhost:3000';
+        const protocol = request.headers.get('x-forwarded-proto') || 'http';
+        const autoParseUrl = `${protocol}://${baseUrl}/api/services/auto-parse`;
+        
+        const parseResponse = await fetch(autoParseUrl, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cookie': request.headers.get('cookie') || '',
+          },
+          body: JSON.stringify({
+            url: serviceData.productPage.sampleUrl,
+            timeout: 25000,
+            isProductPage: true,
+          }),
+        });
+        
+        if (parseResponse.ok) {
+          const parseResult = await parseResponse.json();
+          if (parseResult.success && parseResult.data) {
+            // 파싱 결과로 productPage 업데이트
+            serviceData = {
+              ...serviceData,
+              productPage: {
+                ...serviceData.productPage,
+                urlPattern: parseResult.data.urlPattern || serviceData.productPage?.urlPattern,
+                dataSource: parseResult.data.dataSource || serviceData.productPage?.dataSource,
+                selectors: parseResult.data.suggestedSelectors || serviceData.productPage?.selectors,
+                parsedData: {
+                  jsonLd: parseResult.data.jsonLd,
+                  sampleProducts: parseResult.data.products,
+                  meta: parseResult.data.meta,
+                  parsedAt: parseResult.data.parsedAt,
+                },
+              },
+            };
+          }
+        }
+      } catch (parseError) {
+        console.warn('Auto-parse failed, continuing with manual data:', parseError);
+        // 자동 파싱 실패해도 서비스 등록은 계속 진행
+      }
     }
     
     // 슬러그 생성

@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, Database } from '@/lib/supabase/client';
+import { getSupabaseAdmin } from '@/lib/supabase/client';
 import type { ApiResponse } from '@/types';
 
 export const runtime = 'edge';
@@ -97,12 +97,12 @@ interface GuardrailRecord {
 }
 
 // 인메모리 저장소 (DB 대체)
-let inMemoryRules: GuardrailRule[] = [...DEFAULT_RULES];
+const inMemoryRules: GuardrailRule[] = [...DEFAULT_RULES];
 
 /**
  * GET /api/dashboard/guardrails - 가드레일 규칙 목록 조회
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     
@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
     const sb = supabase as any;
 
     // DB에 추가 시도
-    const { error } = await sb
+    const { error: _insertError } = await sb
       .from('guardrail_rules')
       .insert({
         id: newRule.id,
@@ -315,8 +315,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  } catch (error) {
-    console.error('[Guardrails API] Create error:', error);
+  } catch (_error) {
+    console.error('[Guardrails API] Create error:', _error);
     
     return NextResponse.json({
       success: false,

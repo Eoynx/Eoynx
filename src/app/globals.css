@@ -2,10 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* 다크 테마 (기본) */
+:root,
+.dark {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 2, 6, 23;
   --background-end-rgb: 15, 23, 42;
+  --card-bg: 15, 23, 42;
+  --border-color: 51, 65, 85;
+}
+
+/* 라이트 테마 */
+.light {
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+  --card-bg: 255, 255, 255;
+  --border-color: 226, 232, 240;
 }
 
 body {
@@ -19,10 +32,289 @@ body {
   min-height: 100vh;
 }
 
+/* 라이트 모드 오버라이드 */
+html.light body,
+html.light {
+  color: rgb(15, 23, 42) !important;
+  background: rgb(248, 250, 252) !important;
+}
+
+/* 라이트 모드 그라데이션 배경 직접 오버라이드 */
+html.light .bg-gradient-to-br.from-onyx-900,
+html.light .bg-gradient-to-b.from-onyx-950,
+html.light .bg-gradient-to-b.from-onyx-900,
+html.light [class*="bg-gradient"][class*="from-onyx"] {
+  background-image: linear-gradient(to bottom right, rgb(248, 250, 252), rgb(241, 245, 249), rgb(248, 250, 252)) !important;
+}
+
+html.light .bg-\[radial-gradient\(ellipse_at_top\,_var\(--tw-gradient-stops\)\)\] {
+  background-image: radial-gradient(ellipse at top, rgba(249, 115, 22, 0.1), transparent, transparent) !important;
+}
+
+html.light .from-onyx-900 {
+  --tw-gradient-from: rgb(248, 250, 252) !important;
+}
+
+html.light .via-onyx-950 {
+  --tw-gradient-via: rgb(241, 245, 249) !important;
+}
+
+html.light .to-onyx-900 {
+  --tw-gradient-to: rgb(248, 250, 252) !important;
+}
+
+html.light .from-onyx-950 {
+  --tw-gradient-from: rgb(248, 250, 252) !important;
+}
+
+html.light .to-onyx-900 {
+  --tw-gradient-to: rgb(241, 245, 249) !important;
+}
+
+html.light .bg-onyx-900 {
+  background-color: rgb(255, 255, 255) !important;
+}
+
+html.light .bg-onyx-900\/50,
+html.light [class*="bg-onyx-900/"] {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+html.light .bg-onyx-950 {
+  background-color: rgb(248, 250, 252) !important;
+}
+
+html.light .bg-onyx-800 {
+  background-color: rgb(241, 245, 249) !important;
+}
+
+html.light .bg-onyx-800\/50,
+html.light [class*="bg-onyx-800/"] {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+html.light .bg-onyx-700 {
+  background-color: rgb(226, 232, 240) !important;
+}
+
+html.light .text-onyx-100 {
+  color: rgb(15, 23, 42) !important;
+}
+
+html.light .text-onyx-200 {
+  color: rgb(30, 41, 59) !important;
+}
+
+html.light .text-onyx-300 {
+  color: rgb(51, 65, 85) !important;
+}
+
+html.light .text-onyx-400 {
+  color: rgb(71, 85, 105) !important;
+}
+
+html.light .text-onyx-500 {
+  color: rgb(100, 116, 139) !important;
+}
+
+/* 라이트 모드 text-white 오버라이드 */
+html.light .text-white {
+  color: rgb(15, 23, 42) !important;
+}
+
+html.light .text-white\/80 {
+  color: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* 라이트 모드 색상 배지 오버라이드 */
+html.light .bg-green-900\/30,
+html.light [class*="bg-green-900/"] {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+html.light .border-green-700\/50,
+html.light [class*="border-green-700/"] {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+}
+
+html.light .text-green-400 {
+  color: rgb(22, 163, 74) !important;
+}
+
+html.light .bg-yellow-900\/30,
+html.light [class*="bg-yellow-900/"] {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+html.light .text-yellow-400 {
+  color: rgb(202, 138, 4) !important;
+}
+
+html.light .bg-purple-500\/20,
+html.light [class*="bg-purple-500/"] {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+html.light .text-purple-400 {
+  color: rgb(147, 51, 234) !important;
+}
+
+html.light .border-onyx-700 {
+  border-color: rgb(226, 232, 240) !important;
+}
+
+html.light .border-onyx-800 {
+  border-color: rgb(226, 232, 240) !important;
+}
+
+html.light .border-onyx-600 {
+  border-color: rgb(226, 232, 240) !important;
+}
+
+html.light .placeholder-onyx-500::placeholder {
+  color: rgb(148, 163, 184) !important;
+}
+
+/* 라이트 모드 호버 스타일 */
+html.light .hover\:bg-onyx-800:hover {
+  background-color: rgb(241, 245, 249) !important;
+}
+
+html.light .hover\:bg-onyx-700:hover {
+  background-color: rgb(226, 232, 240) !important;
+}
+
+html.light .hover\:bg-onyx-600:hover {
+  background-color: rgb(203, 213, 225) !important;
+}
+
+html.light .hover\:text-onyx-100:hover {
+  color: rgb(15, 23, 42) !important;
+}
+
+html.light .hover\:text-onyx-200:hover {
+  color: rgb(30, 41, 59) !important;
+}
+
+html.light .hover\:text-onyx-300:hover {
+  color: rgb(51, 65, 85) !important;
+}
+
+html.light .hover\:border-onyx-700:hover {
+  border-color: rgb(203, 213, 225) !important;
+}
+
+html.light .hover\:border-onyx-600:hover {
+  border-color: rgb(203, 213, 225) !important;
+}
+
+/* 다크 모드에서 흰 배경 오버라이드 */
+html.dark .bg-white {
+  background-color: rgb(15, 23, 42) !important;
+}
+
+html.dark .bg-gray-50 {
+  background-color: rgb(30, 41, 59) !important;
+}
+
+html.dark .bg-gray-100 {
+  background-color: rgb(30, 41, 59) !important;
+}
+
+html.dark .bg-gray-200 {
+  background-color: rgb(51, 65, 85) !important;
+}
+
+html.dark .text-gray-900 {
+  color: rgb(241, 245, 249) !important;
+}
+
+html.dark .text-gray-800 {
+  color: rgb(226, 232, 240) !important;
+}
+
+html.dark .text-gray-700 {
+  color: rgb(203, 213, 225) !important;
+}
+
+html.dark .text-gray-600 {
+  color: rgb(148, 163, 184) !important;
+}
+
+html.dark .text-gray-500 {
+  color: rgb(148, 163, 184) !important;
+}
+
+html.dark .text-gray-400 {
+  color: rgb(148, 163, 184) !important;
+}
+
+html.dark .border-gray-200 {
+  border-color: rgb(51, 65, 85) !important;
+}
+
+html.dark .border-gray-300 {
+  border-color: rgb(51, 65, 85) !important;
+}
+
+html.dark .hover\:bg-gray-50:hover {
+  background-color: rgb(30, 41, 59) !important;
+}
+
+html.dark .hover\:bg-gray-100:hover {
+  background-color: rgb(51, 65, 85) !important;
+}
+
+/* 다크 모드 input/select/textarea 스타일 */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: rgb(30, 41, 59) !important;
+  color: rgb(241, 245, 249) !important;
+  border-color: rgb(51, 65, 85) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: rgb(100, 116, 139) !important;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: rgb(249, 115, 22) !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2) !important;
+}
+
+/* 라이트 모드 input/select/textarea 스타일 */
+html.light input,
+html.light select,
+html.light textarea {
+  background-color: rgb(255, 255, 255) !important;
+  color: rgb(15, 23, 42) !important;
+  border-color: rgb(226, 232, 240) !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: rgb(148, 163, 184) !important;
+}
+
+html.light input:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: rgb(249, 115, 22) !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2) !important;
+}
+
 /* Eoynx 커스텀 스타일 */
 @layer components {
   .agent-card {
-    @apply rounded-xl border border-slate-700 bg-slate-900/50 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-md hover:border-orange-500/50;
+    @apply rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-md hover:border-orange-500/50;
+  }
+
+  html.dark .agent-card {
+    @apply border-slate-700 bg-slate-900/50;
   }
 
   .agent-badge {

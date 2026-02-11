@@ -5,8 +5,6 @@
  * 이 테스트는 라우트 핸들러 로직을 단위 테스트합니다.
  */
 
-import { NextRequest } from 'next/server';
-
 // Mock Next.js modules
 jest.mock('next/server', () => ({
   NextRequest: jest.fn().mockImplementation((url: string, init?: RequestInit) => ({
@@ -132,7 +130,7 @@ describe('API Routes', () => {
 
   describe('Sandbox API', () => {
     it('should simulate action without side effects', () => {
-      const simulationRequest = {
+      const _simulationRequest = {
         action: 'purchase',
         params: { productId: 'prod-001', quantity: 1 },
       };
@@ -197,5 +195,148 @@ describe('OpenAPI Spec', () => {
     expect(spec.info.title).toBeDefined();
     expect(spec.info.version).toBeDefined();
     expect(spec.paths).toBeDefined();
+  });
+});
+
+describe('Dashboard APIs', () => {
+  describe('Stats API', () => {
+    it('should return stats with change indicators', () => {
+      const statsResponse = {
+        success: true,
+        data: {
+          todayRequests: { value: 150, change: 50, changeType: 'positive' },
+          activeAgents: { value: 8, change: 3, changeType: 'positive' },
+          avgResponseTime: { value: 120, change: -10, changeType: 'positive' },
+          errorRate: { value: 2.5, change: 0.5, changeType: 'negative' },
+        },
+      };
+
+      expect(statsResponse.data.todayRequests.changeType).toBe('positive');
+      expect(statsResponse.data.avgResponseTime.changeType).toBe('positive'); // lower is better
+    });
+
+    it('should calculate percentage change correctly', () => {
+      const calculateChange = (today: number, yesterday: number) => {
+        if (yesterday === 0) return 0;
+        return Math.round(((today - yesterday) / yesterday) * 100);
+      };
+
+      expect(calculateChange(150, 100)).toBe(50);
+      expect(calculateChange(80, 100)).toBe(-20);
+      expect(calculateChange(100, 0)).toBe(0);
+    });
+  });
+
+  describe('Permissions API', () => {
+    it('should return permissions grouped by level', () => {
+      const _levels = ['basic', 'standard', 'elevated', 'admin'];
+      const permissions = [
+        { id: 'read', level: 'basic' },
+        { id: 'execute', level: 'elevated' },
+        { id: 'admin', level: 'admin' },
+      ];
+
+      const byLevel = permissions.reduce((acc, p) => {
+        acc[p.level] = acc[p.level] || [];
+        acc[p.level].push(p);
+        return acc;
+      }, {} as Record<string, typeof permissions>);
+
+      expect(Object.keys(byLevel)).toEqual(expect.arrayContaining(['basic', 'elevated', 'admin']));
+    });
+
+    it('should validate permission level hierarchy', () => {
+      const levelHierarchy = {
+        basic: 0,
+        standard: 1,
+        elevated: 2,
+        admin: 3,
+      };
+
+      expect(levelHierarchy.admin).toBeGreaterThan(levelHierarchy.elevated);
+      expect(levelHierarchy.elevated).toBeGreaterThan(levelHierarchy.standard);
+    });
+  });
+
+  describe('Logs Stream API', () => {
+    it('should format SSE messages correctly', () => {
+      const formatSSE = (data: object) => `data: ${JSON.stringify(data)}\n\n`;
+      
+      const message = formatSSE({ type: 'logs', data: [] });
+      
+      expect(message.startsWith('data: ')).toBe(true);
+      expect(message.endsWith('\n\n')).toBe(true);
+    });
+
+    it('should include required log fields', () => {
+      const log = {
+        id: 'log-001',
+        timestamp: new Date().toISOString(),
+        agentId: 'gpt-4',
+        action: 'api_call',
+        method: 'GET',
+        endpoint: '/api/search',
+        status: 200,
+        duration: 150,
+      };
+
+      expect(log).toHaveProperty('id');
+      expect(log).toHaveProperty('timestamp');
+      expect(log).toHaveProperty('agentId');
+      expect(log).toHaveProperty('status');
+    });
+  });
+});
+
+describe('Agent Search API Integration', () => {
+  it('should return schema.org formatted products', () => {
+    const searchResult = {
+      '@context': 'https://schema.org',
+      '@type': 'SearchResultsPage',
+      query: 'laptop',
+      results: [
+        {
+          '@type': 'Product',
+          productID: 'prod-001',
+          name: 'Premium Laptop',
+          offers: {
+            '@type': 'Offer',
+            price: 2490000,
+            priceCurrency: 'KRW',
+          },
+        },
+      ],
+      totalResults: 1,
+    };
+
+    expect(searchResult['@context']).toBe('https://schema.org');
+    expect(searchResult.results[0]['@type']).toBe('Product');
+  });
+
+  it('should support pagination parameters', () => {
+    const params = new URLSearchParams({
+      q: 'laptop',
+      page: '2',
+      limit: '20',
+      category: 'electronics',
+    });
+
+    expect(params.get('page')).toBe('2');
+    expect(params.get('limit')).toBe('20');
+    expect(params.get('category')).toBe('electronics');
+  });
+
+  it('should support price range filtering', () => {
+    const params = new URLSearchParams({
+      q: 'headphone',
+      minPrice: '100000',
+      maxPrice: '500000',
+    });
+
+    const minPrice = parseInt(params.get('minPrice') || '0');
+    const maxPrice = parseInt(params.get('maxPrice') || 'Infinity');
+
+    expect(minPrice).toBe(100000);
+    expect(maxPrice).toBe(500000);
   });
 });

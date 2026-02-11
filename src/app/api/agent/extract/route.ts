@@ -14,7 +14,7 @@ export const runtime = 'edge';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, selectors } = body;
+    const { url, selectors: _selectors } = body;
 
     if (!url) {
       return NextResponse.json({

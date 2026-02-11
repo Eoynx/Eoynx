@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   BROWSER: Fetcher;
   ENVIRONMENT: string;
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
 }
 
 interface JsonRpcRequest {
@@ -21,6 +23,57 @@ interface JsonRpcResponse {
 const MCP_VERSION = '2024-11-05';
 const SERVER_NAME = 'eoynx-edge-gateway';
 const SERVER_VERSION = '1.0.0';
+
+/**
+ * Supabase에 로그 기록
+ */
+async function logToSupabase(
+  env: Env,
+  data: {
+    url: string;
+    action: string;
+    status: number;
+    duration: number;
+    agentId?: string;
+    response?: object;
+    error?: string;
+  }
+) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    console.log('[Edge Gateway] Supabase not configured, skipping log');
+    return;
+  }
+  
+  try {
+    const logEntry = {
+      agent_id: data.agentId || 'edge-gateway',
+      action: data.action,
+      method: 'POST',
+      endpoint: data.url,
+      status_code: data.status,
+      duration_ms: data.duration,
+      params: JSON.stringify({ url: data.url }),
+      response: data.response ? JSON.stringify(data.response) : null,
+      error: data.error || null,
+      created_at: new Date().toISOString(),
+    };
+    
+    await fetch(`${env.SUPABASE_URL}/rest/v1/request_logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(logEntry),
+    });
+    
+    console.log('[Edge Gateway] Log recorded to Supabase');
+  } catch (error) {
+    console.error('[Edge Gateway] Failed to log to Supabase:', error);
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -51,6 +104,9 @@ export default {
     }
 
     if (url.pathname === '/parse' && request.method === 'POST') {
+      const startTime = Date.now();
+      const agentId = request.headers.get('X-Agent-Id') || 'anonymous';
+      
       try {
         const { url: targetUrl, selectors = {}, render = false } = await request.json() as { url: string; selectors?: Record<string, string>; render?: boolean };
         if (!targetUrl) {
@@ -63,6 +119,15 @@ export default {
         }
 
         if (!response.ok) {
+          const duration = Date.now() - startTime;
+          await logToSupabase(env, {
+            url: targetUrl,
+            action: 'parse',
+            status: response.status,
+            duration,
+            agentId,
+            error: `Failed to fetch: ${response.status}`,
+          });
           return Response.json({ error: 'Failed to fetch URL', status: response.status }, { status: 400 });
         }
 
@@ -77,11 +142,34 @@ export default {
           }
         }
 
-        return Response.json({
+        const duration = Date.now() - startTime;
+        const result = {
           url: targetUrl,
           extracted,
+          parseTime: duration,
+        };
+        
+        // 로그 기록 (비동기로 처리하여 응답 지연 최소화)
+        logToSupabase(env, {
+          url: targetUrl,
+          action: 'parse',
+          status: 200,
+          duration,
+          agentId,
+          response: { title: extracted.title, hasImage: !!extracted.image },
         });
+
+        return Response.json(result);
       } catch (error) {
+        const duration = Date.now() - startTime;
+        await logToSupabase(env, {
+          url: 'unknown',
+          action: 'parse',
+          status: 500,
+          duration,
+          agentId,
+          error: String(error),
+        });
         return Response.json({ error: 'Parse failed', details: String(error) }, { status: 500 });
       }
     }

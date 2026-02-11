@@ -10,6 +10,9 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
+# Supabase URL (민감하지 않은 정보)
+# SUPABASE_URL은 여기에, SUPABASE_ANON_KEY는 Cloudflare Secrets로 설정
+# wrangler secret put SUPABASE_ANON_KEY
 
 [[d1_databases]]
 binding = "DB"

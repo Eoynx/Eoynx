@@ -23,6 +23,7 @@ interface ParseResult {
   parseTime: number;
   contentLength: number;
   cached: boolean;
+  source?: 'edge-gateway' | 'fallback';
 }
 
 export default function ProxyPage() {
@@ -187,6 +188,26 @@ ${result.links.slice(0, 10).map(l => `- ${l.text}: ${l.href}`).join('\n')}` : ''
       {/* 결과 */}
       {result && (
         <div className="space-y-4">
+          {/* 소스 배지 */}
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
+              result.source === 'edge-gateway' 
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                result.source === 'edge-gateway' ? 'bg-green-400' : 'bg-blue-400'
+              }`}></span>
+              {result.source === 'edge-gateway' ? 'Edge Gateway' : 'Fallback Parser'}
+            </span>
+            {result.cached && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                Cached
+              </span>
+            )}
+          </div>
+
           {/* 요약 카드 */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-onyx-900/50 border border-onyx-800 rounded-lg p-4">

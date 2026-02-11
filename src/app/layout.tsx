@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -176,8 +177,10 @@ export default function RootLayout({
         <link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs.txt - AI Instructions" />
         <link rel="alternate" type="text/plain" href="/ai.txt" title="AI.txt - Agent Configuration" />
       </head>
-      <body className="antialiased bg-onyx-950 text-onyx-100">
-        {children}
+      <body className="antialiased bg-onyx-950 text-onyx-100 dark:bg-onyx-950 dark:text-onyx-100">
+        <ThemeProvider defaultTheme="dark">
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

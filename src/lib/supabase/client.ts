@@ -213,6 +213,31 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['violations']['Insert']>;
       };
+      user_api_keys: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          key_prefix: string;
+          key_hash: string;
+          created_at: string;
+          last_used_at: string | null;
+          expires_at: string | null;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          key_prefix: string;
+          key_hash: string;
+          created_at?: string;
+          last_used_at?: string | null;
+          expires_at?: string | null;
+          revoked_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['user_api_keys']['Insert']>;
+      };
     };
     Views: {
       agent_summary: {

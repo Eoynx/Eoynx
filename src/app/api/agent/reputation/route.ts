@@ -138,6 +138,7 @@ const LEVEL_PERMISSIONS: Record<ReputationLevel, AgentPermissionLevel[]> = {
 };
 
 // 레벨별 Rate Limit
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const LEVEL_RATE_LIMITS: Record<ReputationLevel, number> = {
   'new': 10,
   'basic': 50,

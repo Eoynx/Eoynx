@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import type { AgentIdentity, AgentProvider, ApiResponse, AgentToken } from '@/types';
+import type { AgentProvider, ApiResponse, AgentToken } from '@/types';
 
 export const runtime = 'edge';
 
@@ -67,6 +67,7 @@ async function saveTokenToDB(token: string, agentId: string, expiresAt: number):
 }
 
 // 토큰 검증
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function validateTokenFromDB(token: string): Promise<{ valid: boolean; agentId?: string }> {
   try {
     const supabase = getSupabaseClient();
@@ -107,7 +108,7 @@ async function validateTokenFromDB(token: string): Promise<{ valid: boolean; age
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { agentId, agentSecret, provider, name } = body;
+    const { agentId, agentSecret, provider, name: _name } = body;
 
     // 필수 파라미터 검증
     if (!agentId || !agentSecret) {

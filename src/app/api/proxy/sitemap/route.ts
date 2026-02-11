@@ -123,9 +123,9 @@ export async function POST(request: NextRequest) {
     }
     
     // 사이트맵 URL 검증
-    let parsedSitemapUrl: URL;
+    let _parsedSitemapUrl: URL;
     try {
-      parsedSitemapUrl = new URL(sitemapUrl);
+      _parsedSitemapUrl = new URL(sitemapUrl);
     } catch {
       return NextResponse.json(
         { error: 'Invalid sitemap URL' },

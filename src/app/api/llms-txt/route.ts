@@ -215,7 +215,7 @@ You have limited access. Contact support@eoynx.com for elevated permissions.`);
   return guides.join('\n\n');
 }
 
-function generateActionGuide(permissions: string[], trustLevel: string): string {
+function generateActionGuide(permissions: string[], _trustLevel: string): string {
   const actions: string[] = [];
   
   if (permissions.includes('write') || permissions.includes('execute')) {

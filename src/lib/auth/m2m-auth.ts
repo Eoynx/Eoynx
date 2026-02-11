@@ -189,7 +189,7 @@ export function hasScope(
   if (tokenScopes.includes(requiredScope)) return true;
   
   // 계층적 스코프 (예: 'products:*'는 'products:read', 'products:write' 포함)
-  const scopeParts = requiredScope.split(':');
+  const _scopeParts = requiredScope.split(':');
   for (const scope of tokenScopes) {
     if (scope.endsWith(':*')) {
       const scopePrefix = scope.slice(0, -2);

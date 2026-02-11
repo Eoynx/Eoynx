@@ -404,6 +404,114 @@ Content-Type: application/json
 
 ---
 
+## 웹 파싱 도구
+
+### parse_webpage
+
+Cheerio를 사용하여 웹 페이지를 파싱합니다. 정적 HTML 페이지에 적합합니다.
+
+**요청:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "tools/call",
+  "params": {
+    "name": "parse_webpage",
+    "arguments": {
+      "url": "https://www.ssg.com/item/itemView.ssg?itemId=1000580847327"
+    }
+  }
+}
+```
+
+**응답:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"name\":\"[애슬릿] 여성 펀칭 니트 스니커즈\",\"description\":\"...\",\"image\":\"https://sitem.ssgcdn.com/...\",\"mainEntity\":{\"content\":\"...\",\"headings\":[...],\"images\":[...],\"links\":[...]}}"
+      }
+    ]
+  }
+}
+```
+
+**반환 데이터:**
+- `name`: 페이지 제목
+- `description`: 메타 설명
+- `image`: 대표 이미지
+- `mainEntity.headings`: 제목 태그 목록
+- `mainEntity.images`: 이미지 목록
+- `mainEntity.links`: 링크 목록
+
+---
+
+### parse_webpage_headless
+
+Puppeteer를 사용하여 JavaScript 렌더링이 필요한 페이지를 파싱합니다. 봇 우회 기능과 스크롤을 지원합니다.
+
+**요청:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "tools/call",
+  "params": {
+    "name": "parse_webpage_headless",
+    "arguments": {
+      "url": "https://www.gmarket.co.kr/search/Search?keyword=니트",
+      "waitForSelector": ".box__item-container",
+      "scrollCount": 3
+    }
+  }
+}
+```
+
+**파라미터:**
+| 파라미터 | 타입 | 필수 | 설명 |
+|----------|------|------|------|
+| `url` | string | ✅ | 파싱할 URL |
+| `waitForSelector` | string | - | 대기할 CSS 셀렉터 |
+| `scrollCount` | number | - | 스크롤 횟수 (기본: 3) |
+| `timeout` | number | - | 타임아웃 ms (기본: 30000) |
+
+**응답:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"url\":\"https://www.gmarket.co.kr/search/Search?keyword=니트\",\"products\":[{\"name\":\"트래드클럽 베이직 니트\",\"price\":30820,\"originalPrice\":33500,\"discount\":\"8%\"}]}"
+      }
+    ]
+  }
+}
+```
+
+**지원 사이트:**
+| 사이트 | 상태 | 비고 |
+|--------|------|------|
+| G마켓 | ✅ | 상품명, 가격, 할인율 추출 |
+| 신세계몰 | ✅ | 상품명, 가격 추출 |
+| 무신사 | ⚠️ | 봇 감지로 제한적 |
+| 11번가 | ⚠️ | 봇 감지로 제한적 |
+
+**봇 우회 기능:**
+- Stealth Mode (navigator.webdriver 숨김)
+- User-Agent 로테이션
+- 사이트별 쿠키/헤더 설정
+- 랜덤 딜레이
+
+---
+
 ## 에러 코드
 
 | 코드 | 이름 | 설명 |

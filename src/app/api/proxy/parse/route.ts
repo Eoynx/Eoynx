@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
+// Edge Gateway URL (Cloudflare Workers)
+const EDGE_GATEWAY_URL = process.env.EDGE_GATEWAY_URL;
+
 interface ParseResult {
   url: string;
   title: string;
@@ -23,6 +26,7 @@ interface ParseResult {
   parseTime: number;
   contentLength: number;
   cached: boolean;
+  source: 'edge-gateway' | 'fallback';
 }
 
 // 간단한 메모리 캐시 (프로덕션에서는 Redis 사용)
@@ -176,11 +180,123 @@ function extractLinks(html: string, baseUrl: string): { text: string; href: stri
   return links.slice(0, 30); // 최대 30개
 }
 
+/**
+ * Edge Gateway를 통한 파싱 시도
+ */
+async function parseWithEdgeGateway(url: string, selectors?: Record<string, string>): Promise<ParseResult | null> {
+  if (!EDGE_GATEWAY_URL) {
+    console.log('[Proxy] Edge Gateway URL not configured, using fallback');
+    return null;
+  }
+  
+  try {
+    const startTime = Date.now();
+    const response = await fetch(`${EDGE_GATEWAY_URL}/parse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.EDGE_GATEWAY_API_KEY || '',
+      },
+      body: JSON.stringify({ url, selectors, render: true }),
+      signal: AbortSignal.timeout(15000), // 15초 타임아웃 (브라우저 렌더링 고려)
+    });
+    
+    if (!response.ok) {
+      console.warn(`[Proxy] Edge Gateway returned ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.error) {
+      console.warn('[Proxy] Edge Gateway error:', data.error);
+      return null;
+    }
+    
+    // Edge Gateway 응답을 ParseResult 형식으로 변환
+    const result: ParseResult = {
+      url: data.url || url,
+      title: data.extracted?.title || '',
+      description: data.extracted?.description || '',
+      content: data.extracted?.description || '', // Edge Gateway는 간단한 추출만 제공
+      metadata: {
+        ogTitle: data.extracted?.title,
+        ogDescription: data.extracted?.description,
+        ogImage: data.extracted?.image,
+      },
+      structuredData: [],
+      links: [],
+      headings: [],
+      parseTime: Date.now() - startTime,
+      contentLength: data.extracted?.description?.length || 0,
+      cached: false,
+      source: 'edge-gateway',
+    };
+    
+    console.log(`[Proxy] Edge Gateway parse success: ${url} (${result.parseTime}ms)`);
+    return result;
+    
+  } catch (error) {
+    console.error('[Proxy] Edge Gateway error:', error);
+    return null;
+  }
+}
+
+/**
+ * Fallback: 자체 파싱 로직
+ */
+async function parseWithFallback(url: string, startTime: number): Promise<ParseResult> {
+  // URL 페치
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Eoynx-Proxy/1.0 (+https://eoynx.com)',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    },
+    signal: AbortSignal.timeout(10000), // 10초 타임아웃
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+  }
+  
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+    throw new Error('URL does not return HTML content');
+  }
+  
+  const html = await response.text();
+  
+  // 파싱
+  const title = extractTitle(html);
+  const description = extractDescription(html);
+  const content = extractText(html);
+  const metadata = extractMetadata(html);
+  const structuredData = extractStructuredData(html);
+  const headings = extractHeadings(html);
+  const links = extractLinks(html, url);
+  
+  return {
+    url,
+    title,
+    description,
+    content: content.substring(0, 10000), // 최대 10000자
+    metadata,
+    structuredData,
+    headings,
+    links,
+    parseTime: Date.now() - startTime,
+    contentLength: content.length,
+    cached: false,
+    source: 'fallback',
+  };
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    const { url, options } = await request.json();
+    const { url, options, selectors } = await request.json();
     
     if (!url || typeof url !== 'string') {
       return NextResponse.json(
@@ -190,9 +306,8 @@ export async function POST(request: NextRequest) {
     }
     
     // URL 유효성 검사
-    let parsedUrl: URL;
     try {
-      parsedUrl = new URL(url);
+      const parsedUrl = new URL(url);
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         throw new Error('Invalid protocol');
       }
@@ -214,55 +329,18 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    // URL 페치
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Eoynx-Proxy/1.0 (+https://eoynx.com)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      signal: AbortSignal.timeout(10000), // 10초 타임아웃
-    });
+    let result: ParseResult | null = null;
     
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: `Failed to fetch URL: ${response.status} ${response.statusText}` },
-        { status: 502 }
-      );
+    // 1단계: Edge Gateway 시도
+    if (!options?.fallbackOnly) {
+      result = await parseWithEdgeGateway(url, selectors);
     }
     
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      return NextResponse.json(
-        { error: 'URL does not return HTML content' },
-        { status: 400 }
-      );
+    // 2단계: Fallback (자체 파싱)
+    if (!result) {
+      console.log('[Proxy] Using fallback parser for:', url);
+      result = await parseWithFallback(url, startTime);
     }
-    
-    const html = await response.text();
-    
-    // 파싱
-    const title = extractTitle(html);
-    const description = extractDescription(html);
-    const content = extractText(html);
-    const metadata = extractMetadata(html);
-    const structuredData = extractStructuredData(html);
-    const headings = extractHeadings(html);
-    const links = extractLinks(html, url);
-    
-    const result: ParseResult = {
-      url,
-      title,
-      description,
-      content: content.substring(0, 10000), // 최대 10000자
-      metadata,
-      structuredData,
-      headings,
-      links,
-      parseTime: Date.now() - startTime,
-      contentLength: content.length,
-      cached: false,
-    };
     
     // 캐시 저장
     cache.set(cacheKey, {
@@ -283,7 +361,7 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to parse URL' },
+      { error: error instanceof Error ? error.message : 'Failed to parse URL' },
       { status: 500 }
     );
   }
@@ -301,7 +379,18 @@ export async function GET(request: NextRequest) {
         body: '{ "url": "https://example.com" }',
         options: {
           noCache: 'Skip cache and fetch fresh content',
+          fallbackOnly: 'Skip Edge Gateway and use fallback parser only',
         },
+        selectors: {
+          title: 'Custom CSS selector for title',
+          description: 'Custom CSS selector for description',
+          price: 'Custom CSS selector for price',
+          image: 'Custom CSS selector for image',
+        },
+      },
+      edgeGateway: {
+        configured: !!EDGE_GATEWAY_URL,
+        url: EDGE_GATEWAY_URL ? 'Configured' : 'Not configured',
       },
       example: 'POST /api/proxy/parse with {"url": "https://example.com"}',
     });

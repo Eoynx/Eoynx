@@ -1,0 +1,174 @@
+{
+  "description": "5개 남성 패션 사이트 서비스 설정 - Eoynx Agent Gateway",
+  "createdAt": "2026-02-10T04:30:00Z",
+  "testResults": {
+    "musinsa": {
+      "status": "SUCCESS",
+      "title": "남자옷 | 무신사 추천 상품",
+      "products": "305,611개",
+      "images": 20,
+      "links": 23,
+      "file": "musinsa-result.json"
+    },
+    "hiver": {
+      "status": "SUCCESS",
+      "title": "하이버 - 1000만 남자들의 패션앱",
+      "images": 20,
+      "links": 13,
+      "file": "hiver-result.json"
+    },
+    "uniqlo": {
+      "status": "SUCCESS",
+      "title": "남성 의류 | 유니클로 공식 온라인 스토어",
+      "images": 8,
+      "links": 26,
+      "file": "uniqlo-result.json"
+    },
+    "asos": {
+      "status": "SUCCESS",
+      "title": "Shop Men's Clothes | Latest Trends & Online Fashion | ASOS",
+      "images": 19,
+      "links": 10,
+      "file": "asos-result.json"
+    },
+    "shinsegae": {
+      "status": "SUCCESS",
+      "title": "남성패션 - 신세계몰",
+      "images": 20,
+      "links": 30,
+      "file": "shinsegae-result.json"
+    }
+  },
+  "services": [
+    {
+      "name": "Musinsa",
+      "nameKo": "무신사",
+      "description": "Korea's largest online fashion store with 300,000+ products",
+      "descriptionKo": "305,611개 이상의 남성 패션 상품을 보유한 한국 최대 온라인 패션 스토어",
+      "homepage": "https://www.musinsa.com",
+      "apiBase": "https://www.musinsa.com",
+      "authType": "none",
+      "rateLimit": "100/min",
+      "contactEmail": "partner@musinsa.com",
+      "productPage": {
+        "urlPattern": "/products/{id}",
+        "sampleUrl": "https://www.musinsa.com/search/goods?keyword=남자옷",
+        "dataSource": "dom"
+      },
+      "endpoints": [
+        {
+          "id": "search-goods",
+          "path": "/search/goods",
+          "method": "GET",
+          "description": "Search for fashion products",
+          "auth": false,
+          "params": "keyword, category, price_min, price_max"
+        }
+      ]
+    },
+    {
+      "name": "Hiver",
+      "nameKo": "하이버",
+      "description": "Fashion app for 10 million Korean men",
+      "descriptionKo": "1000만 남자들의 패션앱",
+      "homepage": "https://www.hiver.co.kr",
+      "apiBase": "https://www.hiver.co.kr",
+      "authType": "none",
+      "rateLimit": "100/min",
+      "contactEmail": "help@hiver.co.kr",
+      "productPage": {
+        "urlPattern": "/product/{id}",
+        "sampleUrl": "https://www.hiver.co.kr/",
+        "dataSource": "dom"
+      },
+      "endpoints": [
+        {
+          "id": "home",
+          "path": "/",
+          "method": "GET",
+          "description": "Homepage with featured products",
+          "auth": false,
+          "params": ""
+        }
+      ]
+    },
+    {
+      "name": "Uniqlo Korea",
+      "nameKo": "유니클로 코리아",
+      "description": "Japanese casual wear retailer - Korean official store",
+      "descriptionKo": "글로벌 캐주얼 브랜드 유니클로 한국 공식 온라인 스토어",
+      "homepage": "https://www.uniqlo.com/kr/ko/men",
+      "apiBase": "https://www.uniqlo.com",
+      "authType": "none",
+      "rateLimit": "100/min",
+      "contactEmail": "help@uniqlo.kr",
+      "productPage": {
+        "urlPattern": "/kr/ko/products/{code}",
+        "sampleUrl": "https://www.uniqlo.com/kr/ko/men",
+        "dataSource": "dom"
+      },
+      "endpoints": [
+        {
+          "id": "men-section",
+          "path": "/kr/ko/men",
+          "method": "GET",
+          "description": "Men's clothing section",
+          "auth": false,
+          "params": ""
+        }
+      ]
+    },
+    {
+      "name": "ASOS",
+      "nameKo": "에이소스",
+      "description": "UK's largest online fashion and cosmetics retailer",
+      "descriptionKo": "영국 최대 온라인 패션 리테일러",
+      "homepage": "https://www.asos.com/us/men/",
+      "apiBase": "https://www.asos.com",
+      "authType": "none",
+      "rateLimit": "100/min",
+      "contactEmail": "help@asos.com",
+      "productPage": {
+        "urlPattern": "/us/product/{id}",
+        "sampleUrl": "https://www.asos.com/us/men/",
+        "dataSource": "dom"
+      },
+      "endpoints": [
+        {
+          "id": "men-section",
+          "path": "/us/men/",
+          "method": "GET",
+          "description": "Men's fashion section",
+          "auth": false,
+          "params": ""
+        }
+      ]
+    },
+    {
+      "name": "Shinsegae Mall",
+      "nameKo": "신세계몰",
+      "description": "Korean premium department store online mall",
+      "descriptionKo": "신세계백화점 프리미엄 온라인몰",
+      "homepage": "https://shinsegaemall.ssg.com",
+      "apiBase": "https://shinsegaemall.ssg.com",
+      "authType": "none",
+      "rateLimit": "100/min",
+      "contactEmail": "help@ssg.com",
+      "productPage": {
+        "urlPattern": "/item/{itemId}",
+        "sampleUrl": "https://shinsegaemall.ssg.com/disp/category.ssg?dispCtgId=6000189392",
+        "dataSource": "dom"
+      },
+      "endpoints": [
+        {
+          "id": "category",
+          "path": "/disp/category.ssg",
+          "method": "GET",
+          "description": "Category page",
+          "auth": false,
+          "params": "dispCtgId"
+        }
+      ]
+    }
+  ]
+}

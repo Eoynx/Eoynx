@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load } from 'cheerio';
 import { getSupabaseAdmin } from '@/lib/supabase/client';
+import puppeteer from 'puppeteer';
 
 export const runtime = 'nodejs';
 
@@ -138,6 +139,73 @@ const TOOLS: McpTool[] = [
         threshold: { type: 'number', description: '가격 임계값 (price_drop 이벤트용)' },
       },
       required: ['event'],
+    },
+  },
+  {
+    name: 'parse_webpage',
+    description: '외부 웹페이지를 파싱하여 구조화된 데이터를 추출합니다. 제목, 설명, 본문, 이미지, 링크 등을 JSON-LD 형식으로 반환합니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: '파싱할 웹페이지 URL' },
+        selectors: { type: 'object', description: '커스텀 CSS 셀렉터 (선택)' },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'search_daejeon_tourism',
+    description: '대전 관광 정보를 검색합니다. 관광지, 맛집, 축제, 숙박 정보를 제공합니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '검색어 (예: 유성온천, 성심당, 대전엑스포)' },
+        category: { type: 'string', description: '카테고리', enum: ['tourist_spot', 'restaurant', 'festival', 'accommodation', 'all'] },
+        limit: { type: 'number', description: '결과 수 제한 (기본: 10)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'parse_webpage_headless',
+    description: 'CSR/SPA 사이트를 헤드리스 브라우저로 파싱합니다. JavaScript 렌더링 후 데이터를 추출합니다. 프록시 및 쿠키 설정 지원.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: '파싱할 웹페이지 URL' },
+        waitFor: { type: 'string', description: '대기할 CSS 셀렉터 (선택)' },
+        timeout: { type: 'number', description: '타임아웃 밀리초 (기본: 10000)' },
+        proxy: { 
+          type: 'object', 
+          description: '프록시 서버 설정',
+          properties: {
+            server: { type: 'string', description: '프록시 서버 URL (예: http://proxy.example.com:8080)' },
+            username: { type: 'string', description: '프록시 인증 아이디' },
+            password: { type: 'string', description: '프록시 인증 비밀번호' },
+          },
+        },
+        cookies: {
+          type: 'array',
+          description: '설정할 쿠키 배열',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: '쿠키 이름' },
+              value: { type: 'string', description: '쿠키 값' },
+              domain: { type: 'string', description: '쿠키 도메인' },
+            },
+          },
+        },
+        headers: {
+          type: 'object',
+          description: '추가 HTTP 헤더',
+        },
+        localStorage: {
+          type: 'object',
+          description: '설정할 localStorage 데이터',
+        },
+      },
+      required: ['url'],
     },
   },
 ];
@@ -471,6 +539,29 @@ async function handleRequest(
                 { name: 'budget', description: '예산', required: false },
               ],
             },
+            {
+              name: 'price_comparison',
+              description: '가격 비교 도우미',
+              arguments: [
+                { name: 'product_name', description: '비교할 상품명', required: true },
+                { name: 'min_sellers', description: '최소 판매자 수', required: false },
+              ],
+            },
+            {
+              name: 'order_tracker',
+              description: '주문 추적 도우미',
+              arguments: [
+                { name: 'order_id', description: '주문 번호', required: false },
+              ],
+            },
+            {
+              name: 'smart_search',
+              description: '대화형 스마트 검색',
+              arguments: [
+                { name: 'query', description: '검색 쿼리', required: true },
+                { name: 'context', description: '이전 대화 맥락', required: false },
+              ],
+            },
           ],
         });
 
@@ -575,7 +666,7 @@ async function executeTool(
         };
       }
 
-      let cart = carts.get(agentId) || [];
+      const cart = carts.get(agentId) || [];
       const existingItem = cart.find(item => item.productId === productId);
       
       if (existingItem) {
@@ -696,6 +787,307 @@ async function executeTool(
           }, null, 2),
         }],
       };
+    }
+
+    case 'parse_webpage': {
+      const url = args.url as string;
+      if (!url) {
+        return {
+          content: [{ type: 'text', text: 'URL이 필요합니다.' }],
+          isError: true,
+        };
+      }
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Eoynx-Agent-Gateway/1.0 (MCP Tool)',
+            'Accept': 'text/html,application/xhtml+xml',
+          },
+        });
+
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `페이지 로드 실패: ${response.status}` }],
+            isError: true,
+          };
+        }
+
+        const html = await response.text();
+        const $ = load(html);
+
+        // 구조화된 데이터 추출
+        const title = $('title').text().trim();
+        const description = $('meta[name="description"]').attr('content') || '';
+        const keywords = $('meta[name="keywords"]').attr('content')?.split(',').map(k => k.trim()) || [];
+        const ogImage = $('meta[property="og:image"]').attr('content') || '';
+
+        // 본문 추출
+        const mainContent = $('main, article, .content, #content, .main-content').text().trim().substring(0, 2000);
+        
+        // 헤딩 구조
+        const headings = $('h1, h2, h3').map((_, el) => ({
+          level: parseInt(el.tagName.replace('h', ''), 10),
+          text: $(el).text().trim().substring(0, 100),
+        })).get().slice(0, 20);
+
+        // 이미지 추출
+        const images = $('img').map((_, el) => ({
+          src: $(el).attr('src'),
+          alt: $(el).attr('alt') || '',
+        })).get().filter(img => img.src && !img.src.startsWith('data:')).slice(0, 10);
+
+        // 링크 추출
+        const links = $('a[href]').map((_, el) => ({
+          text: $(el).text().trim().substring(0, 50),
+          href: $(el).attr('href'),
+        })).get().filter(link => link.text && link.href).slice(0, 20);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebPage',
+              url,
+              name: title,
+              description,
+              keywords,
+              image: ogImage,
+              mainEntity: {
+                content: mainContent,
+                headings,
+                images,
+                links,
+              },
+              dateExtracted: new Date().toISOString(),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `파싱 오류: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    }
+
+    case 'search_daejeon_tourism': {
+      const query = (args.query as string || '').toLowerCase();
+      const category = args.category as string || 'all';
+      const limit = (args.limit as number) || 10;
+
+      // 대전 관광 정보 데이터 (샘플)
+      const daejeonData = [
+        // 관광지
+        { id: 'djt-001', name: '대전엑스포과학공원', category: 'tourist_spot', description: '1993년 엑스포 개최지, 한빛탑과 과학체험관', address: '유성구 엑스포로 1', rating: 4.3, keywords: ['엑스포', '과학', '한빛탑'] },
+        { id: 'djt-002', name: '국립중앙과학관', category: 'tourist_spot', description: '국내 최대 과학관, 천체관 운영', address: '유성구 대덕대로 481', rating: 4.5, keywords: ['과학관', '천체관', '체험'] },
+        { id: 'djt-003', name: '한밭수목원', category: 'tourist_spot', description: '도심 속 대규모 수목원, 사계절 아름다움', address: '서구 둔산대로 169', rating: 4.4, keywords: ['수목원', '산책', '자연'] },
+        { id: 'djt-004', name: '유성온천', category: 'tourist_spot', description: '600년 전통의 온천지구', address: '유성구 봉명동 일원', rating: 4.2, keywords: ['온천', '휴양', '족욕'] },
+        { id: 'djt-005', name: '계족산황톳길', category: 'tourist_spot', description: '맨발 걷기 명소, 황토길 14.5km', address: '대덕구 장동 산 1-1', rating: 4.6, keywords: ['맨발', '황톳길', '걷기'] },
+        // 맛집
+        { id: 'djr-001', name: '성심당 본점', category: 'restaurant', description: '대전 대표 빵집, 튀김소보로/부추빵 유명', address: '중구 대종로480번길 15', rating: 4.8, keywords: ['빵', '튀김소보로', '부추빵'] },
+        { id: 'djr-002', name: '두부두루치기골목', category: 'restaurant', description: '대전 전통 두부요리 거리', address: '동구 중앙로 일원', rating: 4.3, keywords: ['두부', '두루치기', '전통'] },
+        { id: 'djr-003', name: '궁동칼국수거리', category: 'restaurant', description: '궁동 먹자골목의 칼국수 명소', address: '유성구 궁동', rating: 4.2, keywords: ['칼국수', '먹자골목'] },
+        // 축제
+        { id: 'djf-001', name: '대전사이언스페스티벌', category: 'festival', description: '과학도시 대전의 대표 축제', period: '매년 10월', address: '엑스포과학공원', rating: 4.4, keywords: ['과학', '축제', '체험'] },
+        { id: 'djf-002', name: '계족산맨발축제', category: 'festival', description: '황톳길 맨발걷기 축제', period: '매년 5-6월', address: '계족산', rating: 4.5, keywords: ['맨발', '축제', '건강'] },
+        // 숙박
+        { id: 'dja-001', name: '유성호텔', category: 'accommodation', description: '유성온천 지구 대표 호텔', address: '유성구 봉명동', rating: 4.1, keywords: ['온천', '호텔', '숙박'] },
+      ];
+
+      // 필터링
+      let results = daejeonData.filter(item => {
+        const matchQuery = item.name.toLowerCase().includes(query) ||
+          item.description.toLowerCase().includes(query) ||
+          item.keywords.some(k => k.includes(query));
+        const matchCategory = category === 'all' || item.category === category;
+        return matchQuery && matchCategory;
+      });
+
+      results = results.slice(0, limit);
+
+      const categoryNames: Record<string, string> = {
+        tourist_spot: '관광지',
+        restaurant: '맛집',
+        festival: '축제',
+        accommodation: '숙박',
+      };
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: `대전 ${category === 'all' ? '관광' : categoryNames[category]} 검색: "${query}"`,
+            numberOfItems: results.length,
+            itemListElement: results.map((item, index) => ({
+              '@type': item.category === 'tourist_spot' ? 'TouristAttraction' :
+                       item.category === 'restaurant' ? 'Restaurant' :
+                       item.category === 'festival' ? 'Event' : 'LodgingBusiness',
+              position: index + 1,
+              identifier: item.id,
+              name: item.name,
+              description: item.description,
+              address: item.address,
+              aggregateRating: { ratingValue: item.rating },
+              keywords: item.keywords.join(', '),
+            })),
+            source: 'letsgodaejeon.kr',
+            searchedAt: new Date().toISOString(),
+          }, null, 2),
+        }],
+      };
+    }
+
+    case 'parse_webpage_headless': {
+      const url = args.url as string;
+      const waitFor = args.waitFor as string | undefined;
+      const timeout = (args.timeout as number) || 10000;
+      const proxy = args.proxy as { server?: string; username?: string; password?: string } | undefined;
+      const cookies = args.cookies as Array<{ name: string; value: string; domain?: string }> | undefined;
+      const headers = args.headers as Record<string, string> | undefined;
+      const localStorage = args.localStorage as Record<string, string> | undefined;
+
+      if (!url) {
+        return {
+          content: [{ type: 'text', text: 'URL이 필요합니다.' }],
+          isError: true,
+        };
+      }
+
+      let browser;
+      try {
+        // 브라우저 실행 옵션
+        const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        };
+
+        // 프록시 설정
+        if (proxy?.server) {
+          launchOptions.args = [...(launchOptions.args || []), `--proxy-server=${proxy.server}`];
+        }
+
+        browser = await puppeteer.launch(launchOptions);
+
+        const page = await browser.newPage();
+        
+        // 프록시 인증
+        if (proxy?.username && proxy?.password) {
+          await page.authenticate({ username: proxy.username, password: proxy.password });
+        }
+
+        // User-Agent 설정
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
+        // 추가 헤더 설정
+        if (headers) {
+          await page.setExtraHTTPHeaders(headers);
+        }
+
+        // 쿠키 설정
+        if (cookies && cookies.length > 0) {
+          const urlObj = new URL(url);
+          const cookiesToSet = cookies.map(cookie => ({
+            name: cookie.name,
+            value: cookie.value,
+            domain: cookie.domain || urlObj.hostname,
+            path: '/',
+          }));
+          await page.setCookie(...cookiesToSet);
+        }
+
+        await page.goto(url, { waitUntil: 'networkidle2', timeout });
+
+        // localStorage 설정 (페이지 로드 후)
+        if (localStorage) {
+          await page.evaluate((data) => {
+            Object.entries(data).forEach(([key, value]) => {
+              window.localStorage.setItem(key, value);
+            });
+          }, localStorage);
+          // localStorage 설정 후 페이지 새로고침이 필요할 수 있음
+        }
+
+        if (waitFor) {
+          await page.waitForSelector(waitFor, { timeout: 5000 }).catch(() => {});
+        }
+
+        // 페이지 데이터 추출
+        const data = await page.evaluate(() => {
+          const title = document.title;
+          const description = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+          const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+
+          // 본문 추출
+          const mainContent = (document.querySelector('main, article, .content, #content, .main-content') as HTMLElement)?.innerText?.substring(0, 3000) || '';
+
+          // 헤딩 추출
+          const headings = Array.from(document.querySelectorAll('h1, h2, h3')).slice(0, 30).map(el => ({
+            level: parseInt(el.tagName.replace('H', ''), 10),
+            text: el.textContent?.trim().substring(0, 100) || '',
+          }));
+
+          // 이미지 추출
+          const images = Array.from(document.querySelectorAll('img')).slice(0, 20).map(img => ({
+            src: img.src,
+            alt: img.alt || '',
+          })).filter(img => img.src && !img.src.startsWith('data:'));
+
+          // 상품 정보 추출 (쇼핑몰용)
+          const products = Array.from(document.querySelectorAll('[class*="product"], [class*="item"], [data-product]')).slice(0, 20).map(el => {
+            const nameEl = el.querySelector('[class*="name"], [class*="title"], h2, h3, a');
+            const priceEl = el.querySelector('[class*="price"]');
+            const imgEl = el.querySelector('img');
+            return {
+              name: nameEl?.textContent?.trim().substring(0, 100) || '',
+              price: priceEl?.textContent?.trim() || '',
+              image: imgEl?.src || '',
+            };
+          }).filter(p => p.name);
+
+          // 링크 추출
+          const links = Array.from(document.querySelectorAll('a[href]')).slice(0, 30).map(a => ({
+            text: a.textContent?.trim().substring(0, 50) || '',
+            href: a.getAttribute('href') || '',
+          })).filter(link => link.text && link.href);
+
+          return { title, description, ogImage, mainContent, headings, images, products, links };
+        });
+
+        await browser.close();
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebPage',
+              url,
+              name: data.title,
+              description: data.description,
+              image: data.ogImage,
+              renderMode: 'headless',
+              mainEntity: {
+                content: data.mainContent,
+                headings: data.headings,
+                images: data.images,
+                products: data.products,
+                links: data.links,
+              },
+              dateExtracted: new Date().toISOString(),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        if (browser) await browser.close();
+        return {
+          content: [{ type: 'text', text: `헤드리스 파싱 오류: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
     }
 
     default:
@@ -851,6 +1243,65 @@ function getPrompt(
 예산: ${args.budget || '제한 없음'}
 
 search_products 도구를 사용하여 적합한 상품을 찾고 추천해주세요.`,
+          },
+        }],
+      };
+
+    case 'price_comparison':
+      return {
+        description: '가격 비교 도우미',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `여러 판매처에서 "${args.product_name}" 상품의 가격을 비교해주세요.
+
+최소 ${args.min_sellers || 3}개의 판매처를 비교하고, 다음 정보를 포함해주세요:
+- 최저가 판매처
+- 평균 가격
+- 배송비 포함 실제 가격
+- 각 판매처의 리뷰 평점
+
+search_products와 get_product_details 도구를 사용하세요.`,
+          },
+        }],
+      };
+
+    case 'order_tracker':
+      return {
+        description: '주문 추적 도우미',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `${args.order_id ? `주문번호 ${args.order_id}의 배송 상태를 추적합니다.` : '최근 주문 내역을 조회합니다.'}
+
+다음 정보를 제공해주세요:
+- 현재 배송 상태
+- 예상 도착일
+- 배송 업체 및 운송장 번호
+- 배송 추적 링크`,
+          },
+        }],
+      };
+
+    case 'smart_search':
+      return {
+        description: '대화형 스마트 검색',
+        messages: [{
+          role: 'system',
+          content: {
+            type: 'text',
+            text: `당신은 Agent-Gateway의 스마트 검색 어시스턴트입니다.
+사용자의 자연어 질문을 분석하여 적절한 검색을 수행하세요.
+
+이전 맥락: ${args.context || '없음'}`,
+          },
+        }, {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: args.query as string || '상품을 검색해주세요',
           },
         }],
       };

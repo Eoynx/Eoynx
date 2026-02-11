@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
+  } catch (_error) {
     return new Response(JSON.stringify({ error: 'Invalid event format' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
