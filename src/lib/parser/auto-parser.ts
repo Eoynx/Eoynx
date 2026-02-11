@@ -89,7 +89,7 @@ export async function autoParsePage(options: AutoParseOptions): Promise<ParsedPa
     }
 
     // JavaScript 렌더링 대기
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // HTML 가져오기
     const html = await page.content();

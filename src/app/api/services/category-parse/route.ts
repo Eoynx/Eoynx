@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer, { Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
@@ -182,7 +182,7 @@ async function parseCategoryPage(
     }
 
     browser = await puppeteer.launch({
-      headless: 'new', // 새로운 headless 모드 (더 나은 스텔스)
+      headless: true, // headless 모드
       args: launchArgs,
     });
 
@@ -326,7 +326,7 @@ async function randomDelay(min: number, max: number): Promise<void> {
 /**
  * 스텔스 모드 적용 (봇 탐지 우회)
  */
-async function applyStealthMode(page: puppeteer.Page): Promise<void> {
+async function applyStealthMode(page: Page): Promise<void> {
   // navigator.webdriver 숨기기
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', {
@@ -336,6 +336,7 @@ async function applyStealthMode(page: puppeteer.Page): Promise<void> {
 
   // Chrome 플러그인 모방
   await page.evaluateOnNewDocument(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).chrome = {
       runtime: {},
       loadTimes: function() { },
@@ -347,6 +348,7 @@ async function applyStealthMode(page: puppeteer.Page): Promise<void> {
   // permissions API 수정
   await page.evaluateOnNewDocument(() => {
     const originalQuery = window.navigator.permissions.query;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.navigator.permissions.query = (parameters: any) =>
       parameters.name === 'notifications'
         ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
@@ -389,7 +391,7 @@ async function applyStealthMode(page: puppeteer.Page): Promise<void> {
 /**
  * 페이지 자동 스크롤 (무한 스크롤 대응)
  */
-async function autoScroll(page: puppeteer.Page, maxScrolls: number = 5): Promise<void> {
+async function autoScroll(page: Page, maxScrolls: number = 5): Promise<void> {
   await page.evaluate(async (scrollCount: number) => {
     await new Promise<void>((resolve) => {
       let totalHeight = 0;
@@ -627,8 +629,10 @@ function cleanProductName(rawName: string): { name: string; brand?: string } {
  * 부모 요소에서 상품 정보 추출 (상품 링크 기반)
  */
 function extractProductFromParent(
-  $parent: cheerio.Cheerio<cheerio.Element>,
-  $link: cheerio.Cheerio<cheerio.Element>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $parent: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $link: any,
   $: cheerio.CheerioAPI,
   baseUrl: string
 ): ProductItem {
@@ -646,7 +650,7 @@ function extractProductFromParent(
       .trim();
     
     // 첫 번째 의미 있는 텍스트 조각
-    const parts = textWithoutPrice.split(/\s{2,}/).filter(p => p.length > 3);
+    const parts = textWithoutPrice.split(/\s{2,}/).filter((p: string) => p.length > 3);
     rawName = parts[0]?.substring(0, 150) || '';
   }
   
@@ -697,7 +701,8 @@ function extractProductFromParent(
  * 개별 상품 정보 추출
  */
 function extractProductInfo(
-  $el: cheerio.Cheerio<cheerio.Element>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $el: any,
   $: cheerio.CheerioAPI,
   baseUrl: string
 ): ProductItem {
@@ -740,7 +745,8 @@ function extractProductInfo(
   let discount = '';
   
   for (const sel of priceSelectors) {
-    $el.find(sel).each((_, priceEl) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    $el.find(sel).each((_: number, priceEl: any) => {
       const priceText = $(priceEl).text().trim();
       const numbers = priceText.match(/[\d,]+/g);
       
@@ -996,7 +1002,7 @@ function extractTotalCount($: cheerio.CheerioAPI): number | undefined {
  */
 function extractPagination(
   $: cheerio.CheerioAPI,
-  baseUrl: string
+  _baseUrl: string
 ): CategoryParseResult['pagination'] {
   // 현재 페이지 번호
   let currentPage = 1;

@@ -38,16 +38,21 @@ interface JsonRpcResponse {
 }
 
 // MCP Tool 정의
+interface McpPropertySchema {
+  type: string;
+  description?: string;
+  enum?: string[];
+  properties?: Record<string, McpPropertySchema>;
+  items?: McpPropertySchema;
+  required?: string[];
+}
+
 interface McpTool {
   name: string;
   description: string;
   inputSchema: {
     type: 'object';
-    properties: Record<string, {
-      type: string;
-      description: string;
-      enum?: string[];
-    }>;
+    properties: Record<string, McpPropertySchema>;
     required?: string[];
   };
 }
