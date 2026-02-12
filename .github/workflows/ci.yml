@@ -60,7 +60,7 @@ jobs:
         run: npm run build
       
       - name: Upload SDK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sdk-dist
           path: packages/sdk/dist/
