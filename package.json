@@ -26,7 +26,7 @@
     "test:api": "node scripts/test-api.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.93.3",
+    "@supabase/supabase-js": "^2.95.3",
     "cheerio": "^1.2.0",
     "date-fns": "^3.3.1",
     "jose": "^5.2.0",
