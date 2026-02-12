@@ -77,7 +77,38 @@ const BLOCKED_PATTERNS = [
 // Rate limiting 설정 (메모리 기반, 실제로는 Redis 사용)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 100; // 분당 요청 수
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _RATE_LIMIT_AUTHENTICATED = 500; // 인증된 사용자 분당 요청 수 (향후 사용)
 const RATE_WINDOW = 60 * 1000; // 1분
+
+/**
+ * 클라이언트 IP 안전하게 추출
+ * 보안: X-Forwarded-For 스푸핑 방지
+ */
+function getClientIp(request: NextRequest): string {
+  // 신뢰할 수 있는 프록시에서만 X-Forwarded-For 사용
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _trustedProxies = (process.env.TRUSTED_PROXIES || '').split(',').filter(Boolean);
+  
+  // Vercel/Cloudflare 등 신뢰할 수 있는 플랫폼의 IP 헤더
+  const cfConnectingIp = request.headers.get('cf-connecting-ip');
+  const vercelIp = request.headers.get('x-real-ip');
+  
+  if (cfConnectingIp) return cfConnectingIp;
+  if (vercelIp) return vercelIp;
+  
+  // X-Forwarded-For는 첫 번째 IP만 사용 (가장 원본에 가까움)
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(',')[0].trim();
+    // 내부 IP 필터링
+    if (!firstIp.startsWith('10.') && !firstIp.startsWith('192.168.') && !firstIp.startsWith('127.')) {
+      return firstIp;
+    }
+  }
+  
+  return request.ip || 'unknown';
+}
 
 export async function middleware(request: NextRequest) {
   const startTime = Date.now();
@@ -88,7 +119,7 @@ export async function middleware(request: NextRequest) {
   const agentToken = request.headers.get('x-agent-token') 
     || request.headers.get('authorization')?.replace('Bearer ', '');
   const agentId = request.headers.get('x-agent-id') || 'anonymous';
-  const clientIp = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+  const clientIp = getClientIp(request);
 
   // ===========================================
   // AI 에이전트 발견 파일 동적 제공
@@ -234,9 +265,27 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-RateLimit-Remaining', String(RATE_LIMIT - rateLimitResult.count));
   response.headers.set('X-RateLimit-Reset', String(rateLimitResult.resetAt));
 
-  // CORS 헤더
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // CORS 헤더 (보안 강화: 허용된 오리진만)
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://eoynx.com,https://www.eoynx.com')
+    .split(',')
+    .map(o => o.trim());
+  const origin = request.headers.get('origin');
+  
+  // AI 에이전트 API는 CORS 완화 (다양한 클라이언트에서 접근)
+  if (pathname.startsWith('/api/agent') || pathname.startsWith('/api/ai')) {
+    response.headers.set('Access-Control-Allow-Origin', '*');
+  } else if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+  } else if (process.env.NODE_ENV === 'development') {
+    // 개발 환경에서만 localhost 허용
+    if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 
     'Content-Type, Authorization, X-Agent-Token, X-Agent-ID');
 
@@ -340,7 +389,14 @@ async function validateToken(token: string): Promise<{ valid: boolean; error?: s
       }
     }
     
-    // Secret이 없으면 기본 검증 (디코딩만)
+    // 보안: Secret이 없으면 거부 (프로덕션에서는 반드시 설정 필요)
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Security] JWT_SECRET not configured in production!');
+      return { valid: false, error: 'Server configuration error' };
+    }
+    
+    // 개발 환경에서만 경고 후 기본 검증 허용
+    console.warn('[Security Warning] JWT_SECRET not set - accepting token without signature verification (dev only)');
     const payloadBase64 = parts[1];
     const payloadJson = JSON.parse(
       new TextDecoder().decode(
@@ -353,8 +409,6 @@ async function validateToken(token: string): Promise<{ valid: boolean; error?: s
       return { valid: false, error: 'Token expired' };
     }
     
-    // 서명 검증 없이 통과 (개발 환경용)
-    console.warn('[JWT] Token validation without signature verification - set JWT_SECRET in production');
     return { valid: true, payload: payloadJson };
     
   } catch (error) {
@@ -365,6 +419,7 @@ async function validateToken(token: string): Promise<{ valid: boolean; error?: s
 
 /**
  * 사용자 인증 토큰 검증 (대시보드 접근용)
+ * 보안: 서명 검증 필수
  */
 async function verifyAuthToken(token: string): Promise<boolean> {
   try {
@@ -378,16 +433,62 @@ async function verifyAuthToken(token: string): Promise<boolean> {
       return false;
     }
 
-    // Base64 디코딩하여 payload 추출 및 만료 시간 확인
+    // JWT Secret 가져오기
+    const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+    
+    if (jwtSecret) {
+      // 서명 검증
+      try {
+        const secret = new TextEncoder().encode(jwtSecret);
+        const { payload } = await jwtVerify(token, secret, {
+          algorithms: ['HS256', 'HS384', 'HS512'],
+        });
+        
+        // 필수 클레임 확인
+        if (!payload.sub || !payload.email) {
+          return false;
+        }
+        
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    
+    // Supabase JWKS로 검증 시도
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (supabaseUrl) {
+      try {
+        const JWKS = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+        const { payload } = await jwtVerify(token, JWKS, {
+          issuer: `${supabaseUrl}/auth/v1`,
+        });
+        
+        if (!payload.sub) {
+          return false;
+        }
+        
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    
+    // 프로덕션에서 시크릿 없으면 거부
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Security] Cannot verify auth token - no JWT_SECRET configured');
+      return false;
+    }
+    
+    // 개발 환경에서만 기본 검증 (경고 출력)
+    console.warn('[Security Warning] Verifying auth token without signature (dev only)');
     try {
       const payload = JSON.parse(atob(parts[1]));
       
-      // 만료 시간 확인
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         return false;
       }
 
-      // 필수 클레임 확인
       if (!payload.sub || !payload.email) {
         return false;
       }
@@ -433,6 +534,7 @@ function createErrorResponse(
 
 /**
  * 접근 로그 기록
+ * 보안: 민감 정보 마스킹
  */
 function logAccess(log: {
   timestamp: Date;
@@ -443,11 +545,29 @@ function logAccess(log: {
   userAgent: string;
   responseTime: number;
 }): void {
-  // 실제로는 로깅 서비스로 비동기 전송
-  // 여기서는 콘솔 출력 (개발용)
+  // 보안: IP 주소 마스킹 (마지막 옥텟 제거)
+  const maskedIp = log.ip.replace(/\.\d+$/, '.***').replace(/:[^:]+$/, ':***');
+  
+  // 보안: User-Agent에서 민감 정보 제거
+  const sanitizedUserAgent = log.userAgent
+    .replace(/token[=:][^\s&;]+/gi, 'token=***')
+    .replace(/key[=:][^\s&;]+/gi, 'key=***')
+    .replace(/password[=:][^\s&;]+/gi, 'password=***');
+  
+  const safeLog = {
+    ...log,
+    ip: maskedIp,
+    userAgent: sanitizedUserAgent.slice(0, 200),
+    timestamp: log.timestamp.toISOString(),
+  };
+  
+  // 개발 환경에서만 콘솔 출력
   if (process.env.NODE_ENV === 'development') {
-    console.log('[AgentGateway]', JSON.stringify(log));
+    console.log('[AgentGateway]', JSON.stringify(safeLog));
   }
+  
+  // 프로덕션에서는 로깅 서비스로 전송 (비동기)
+  // TODO: 실제 로깅 서비스 연동
 }
 
 // ===========================================

@@ -11,11 +11,10 @@ import type {
   AgentPermissionLevel,
   AgentProvider 
 } from '@/types';
+import { getJWTSecretKey } from './jwt-config';
 
-// 환경 변수에서 시크릿 키 로드 (실제로는 환경 변수 사용)
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'agent-gateway-secret-key-change-in-production'
-);
+// 보안: 환경 변수에서 시크릿 키 로드 (하드코딩 제거됨)
+const getJWTSecret = () => getJWTSecretKey();
 
 const TOKEN_EXPIRY_HOURS = 24;
 
@@ -67,7 +66,7 @@ export async function generateAgentToken(
     .setIssuedAt()
     .setExpirationTime(`${TOKEN_EXPIRY_HOURS}h`)
     .setJti(uuidv4())
-    .sign(JWT_SECRET);
+    .sign(getJWTSecret());
 
   return {
     token,
@@ -88,7 +87,7 @@ export async function verifyAgentToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJWTSecret());
     
     return {
       valid: true,

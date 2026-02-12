@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { load, CheerioAPI } from 'cheerio';
-import { jwtVerify } from 'jose';
+import { verifySessionToken } from '@/lib/auth/jwt-config';
 
 export const runtime = 'nodejs';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-for-development-only'
-);
 
 function deriveUrlPattern(pathname: string): string {
   if (!pathname || pathname === '/') return '/products/:id';
@@ -42,9 +38,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      await jwtVerify(token, JWT_SECRET);
-    } catch {
+    const authResult = await verifySessionToken(token);
+    if (!authResult.valid) {
       return NextResponse.json(
         { error: 'Invalid token' },
         { status: 401 }

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { verifySessionToken } from '@/lib/auth/jwt-config';
 
 export const runtime = 'edge';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-for-development-only'
-);
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,15 +16,19 @@ export async function GET(request: NextRequest) {
     }
 
     // JWT 토큰 검증 및 디코딩
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const result = await verifySessionToken(token);
+    
+    if (!result.valid) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
 
     return NextResponse.json({
       user: {
-        id: payload.sub,
-        email: payload.email,
-        name: payload.name,
-        provider: payload.provider,
-        role: payload.role,
+        id: result.userId,
+        email: result.email,
       },
     });
   } catch (error) {

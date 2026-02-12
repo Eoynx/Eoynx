@@ -1,0 +1,232 @@
+{
+  "name": "@eoynx/mcp-server",
+  "displayName": "Eoynx Agent Gateway",
+  "version": "1.0.0",
+  "description": "AI Agent-Friendly Web Gateway - Parse any website, execute actions, and integrate with AI agents via MCP protocol",
+  "author": {
+    "name": "Eoynx Team",
+    "url": "https://eoynx.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Eoynx/Eoynx"
+  },
+  "license": "MIT",
+  "categories": [
+    "web-scraping",
+    "data-extraction",
+    "ai-agent",
+    "e-commerce"
+  ],
+  "tags": [
+    "mcp",
+    "web-parsing",
+    "ai-gateway",
+    "puppeteer",
+    "cheerio",
+    "shopping",
+    "product-search"
+  ],
+  "mcp": {
+    "version": "1.0.0",
+    "transport": "http",
+    "endpoints": {
+      "base": "https://eoynx.com/api/agent/mcp",
+      "tools": "/tools",
+      "resources": "/resources",
+      "prompts": "/prompts"
+    },
+    "authentication": {
+      "type": "bearer",
+      "tokenUrl": "https://eoynx.com/api/agent/auth/token",
+      "description": "Obtain token with agent_id and agent_secret"
+    }
+  },
+  "tools": [
+    {
+      "name": "search_products",
+      "description": "Search for products across registered e-commerce sites",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search keyword"
+          },
+          "category": {
+            "type": "string",
+            "description": "Product category filter"
+          },
+          "maxPrice": {
+            "type": "number",
+            "description": "Maximum price filter"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Number of results (default: 10)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "parse_webpage",
+      "description": "Extract structured data from any URL using static parsing",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to parse"
+          },
+          "selectors": {
+            "type": "object",
+            "description": "Optional CSS selectors for specific elements"
+          }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "parse_webpage_headless",
+      "description": "Extract data using headless browser (for JavaScript-rendered pages)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to parse"
+          },
+          "waitFor": {
+            "type": "string",
+            "description": "CSS selector to wait for before extraction"
+          },
+          "timeout": {
+            "type": "number",
+            "description": "Timeout in milliseconds"
+          }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "add_to_cart",
+      "description": "Add a product to the shopping cart",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "description": "Product ID to add"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity (default: 1)"
+          }
+        },
+        "required": ["productId"]
+      }
+    },
+    {
+      "name": "view_cart",
+      "description": "View current shopping cart contents",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "create_order",
+      "description": "Create an order from cart (requires confirmation)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "description": "User confirmation required"
+          }
+        },
+        "required": ["confirmed"]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "gateway://catalog/products",
+      "name": "Product Catalog",
+      "description": "Access to product catalog across all registered services",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "gateway://catalog/categories",
+      "name": "Category List",
+      "description": "List of available product categories",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "gateway://user/cart",
+      "name": "Shopping Cart",
+      "description": "Current user's shopping cart",
+      "mimeType": "application/json"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "shopping_assistant",
+      "description": "AI shopping assistant prompt for product recommendations"
+    },
+    {
+      "name": "price_comparison",
+      "description": "Compare prices across multiple e-commerce sites"
+    }
+  ],
+  "examples": [
+    {
+      "title": "Search Products",
+      "description": "Search for wireless headphones under $100",
+      "request": {
+        "method": "tools/call",
+        "params": {
+          "name": "search_products",
+          "arguments": {
+            "query": "wireless headphones",
+            "maxPrice": 100,
+            "limit": 5
+          }
+        }
+      }
+    },
+    {
+      "title": "Parse E-commerce Page",
+      "description": "Extract product data from a URL",
+      "request": {
+        "method": "tools/call",
+        "params": {
+          "name": "parse_webpage",
+          "arguments": {
+            "url": "https://example.com/products/123"
+          }
+        }
+      }
+    }
+  ],
+  "quickstart": {
+    "steps": [
+      {
+        "title": "Get API Token",
+        "description": "Register an agent and obtain authentication token",
+        "code": "curl -X POST https://eoynx.com/api/agent/auth/token -d '{\"agent_id\": \"your-agent\", \"agent_secret\": \"your-secret\"}'"
+      },
+      {
+        "title": "Connect MCP Client",
+        "description": "Use the token to connect your MCP client",
+        "code": "// MCP client configuration\n{\n  \"server\": \"https://eoynx.com/api/agent/mcp\",\n  \"auth\": { \"token\": \"your-token\" }\n}"
+      },
+      {
+        "title": "Call Tools",
+        "description": "Start using the available tools",
+        "code": "// Example: Search products\nawait client.callTool('search_products', { query: 'laptop' })"
+      }
+    ]
+  }
+}

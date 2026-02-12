@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { SignJWT } from 'jose';
+import { signJWT } from '@/lib/auth/jwt-config';
 
 export const runtime = 'edge';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-for-development-only'
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,16 +46,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 사용자 정보로 JWT 토큰 생성
-    const token = await new SignJWT({
+    const token = await signJWT({
       sub: data.user.id,
       email: data.user.email,
       name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
       role: data.user.role || 'user',
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(JWT_SECRET);
+    }, { expiresIn: '24h' });
 
     // 응답에 쿠키 설정
     const response = NextResponse.json({

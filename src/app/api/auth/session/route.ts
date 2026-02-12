@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SignJWT, decodeJwt } from 'jose';
+import { decodeJwt } from 'jose';
+import { signJWT } from '@/lib/auth/jwt-config';
 
 export const runtime = 'edge';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-for-development-only'
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,17 +45,13 @@ export async function POST(request: NextRequest) {
     const provider = ((payload.app_metadata as Record<string, unknown>)?.provider as string) || 'unknown';
 
     // JWT 토큰 생성
-    const token = await new SignJWT({
+    const token = await signJWT({
       sub: payload.sub,
       email: payload.email,
       name,
       provider,
       role: payload.role || 'user',
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(JWT_SECRET);
+    }, { expiresIn: '24h' });
 
     // 응답에 쿠키 설정
     const response = NextResponse.json({

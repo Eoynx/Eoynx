@@ -1,0 +1,167 @@
+# Eoynx Agent Gateway - Windsurf AI Rules
+
+## About This Project
+Eoynx is an AI Agent Gateway - a bridge between AI agents and the web.
+It provides web parsing, MCP protocol support, and secure agent authentication.
+
+## Architecture Overview
+```
+┌─────────────────────────────────────────────────────┐
+│                    Eoynx Gateway                     │
+├─────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
+│  │ AI Agent │──│   MCP    │──│  Web Parsing     │  │
+│  │   Auth   │  │  Server  │  │ (Cheerio/Puppeteer)│ │
+│  └──────────┘  └──────────┘  └──────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
+│  │Dashboard │  │   API    │  │    Supabase      │  │
+│  │  (Next)  │  │ Routes   │  │   (Database)     │  │
+│  └──────────┘  └──────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+## Key Concepts
+
+### MCP (Model Context Protocol)
+MCP is a standardized protocol for AI agent interactions.
+Eoynx implements:
+- `tools/list` - List available tools
+- `tools/call` - Execute a tool
+- `resources/list` - List data resources
+- `prompts/list` - List prompt templates
+
+### Agent Authentication
+Agents authenticate via JWT tokens:
+1. Request token with agent ID and secret
+2. Include token in `X-Agent-Token` header
+3. Token includes permissions and scopes
+
+### Web Parsing Pipeline
+1. Static parsing (Cheerio) - Fast, for SSR sites
+2. Headless parsing (Puppeteer) - For CSR/SPA sites
+3. Hybrid mode - Auto-detect and fallback
+
+## Coding Guidelines
+
+### File Naming
+- Pages: `page.tsx`
+- API Routes: `route.ts`
+- Components: `PascalCase.tsx`
+- Utilities: `kebab-case.ts`
+
+### Import Order
+```typescript
+// 1. React/Next
+import { NextRequest } from 'next/server';
+
+// 2. External libraries
+import { load } from 'cheerio';
+
+// 3. Internal modules
+import { verifySessionToken } from '@/lib/auth/jwt-config';
+
+// 4. Types
+import type { ApiResponse } from '@/types';
+```
+
+### API Route Template
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { verifySessionToken } from '@/lib/auth/jwt-config';
+
+export const runtime = 'edge'; // or 'nodejs' for Puppeteer
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Auth check
+    const token = request.cookies.get('session')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const auth = await verifySessionToken(token);
+    if (!auth.valid) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+
+    // 2. Parse request
+    const body = await request.json();
+
+    // 3. Business logic
+    // ...
+
+    // 4. Return response
+    return NextResponse.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('[API Error]', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Component Template
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+
+interface Props {
+  title: string;
+  onAction?: () => void;
+}
+
+export function MyComponent({ title, onAction }: Props) {
+  const [data, setData] = useState<Data | null>(null);
+
+  useEffect(() => {
+    // Fetch data
+  }, []);
+
+  return (
+    <div className="bg-onyx-900 p-4 rounded-lg">
+      <h2 className="text-xl font-bold text-onyx-100">{title}</h2>
+      {/* Content */}
+    </div>
+  );
+}
+```
+
+## Database Schema
+
+### Key Tables
+- `services` - Registered services with parsing config
+- `agents` - Registered AI agents
+- `request_logs` - API request logs
+- `action_logs` - Action execution logs
+- `permissions` - Permission definitions
+- `guardrail_rules` - Content guardrails
+
+## Testing
+```bash
+# Run tests
+npm test
+
+# Run specific test
+npm test -- --testPathPattern="routes.test"
+
+# Watch mode
+npm test -- --watch
+```
+
+## Deployment
+- Vercel for main app
+- Cloudflare Workers for edge parsing
+- Supabase for database
+
+## Useful Links
+- `/api/openapi` - OpenAPI specification
+- `/ai.txt` - AI agent configuration
+- `/llms.txt` - LLM instructions
+- `/.well-known/mcp.json` - MCP server info

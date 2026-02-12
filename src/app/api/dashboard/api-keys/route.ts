@@ -4,14 +4,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
 import { getSupabaseAdmin } from '@/lib/supabase/client';
+import { verifySessionToken } from '@/lib/auth/jwt-config';
 
 export const runtime = 'edge';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-for-development-only'
-);
 
 // 사용자 인증 헬퍼
 async function authenticateUser(request: NextRequest): Promise<{ userId: string } | null> {
@@ -19,12 +15,10 @@ async function authenticateUser(request: NextRequest): Promise<{ userId: string 
   
   if (!token) return null;
   
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return { userId: payload.sub as string };
-  } catch {
-    return null;
-  }
+  const result = await verifySessionToken(token);
+  if (!result.valid) return null;
+  
+  return { userId: result.userId };
 }
 
 // API 키 해시 생성 (SHA-256)

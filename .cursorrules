@@ -1,0 +1,147 @@
+# Eoynx Agent Gateway - Cursor AI Rules
+
+## Project Overview
+Eoynx is an AI Agent-Friendly Web Gateway Platform that provides:
+- Web parsing with Cheerio and Puppeteer
+- MCP (Model Context Protocol) server
+- AI agent authentication (JWT)
+- Rate limiting and guardrails
+- Real-time SSE streaming
+
+## Tech Stack
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Database**: Supabase (PostgreSQL)
+- **Styling**: Tailwind CSS
+- **Edge Runtime**: Cloudflare Workers (optional)
+- **Auth**: JWT + Supabase Auth
+
+## Code Style
+
+### TypeScript
+- Use strict TypeScript with proper typing
+- Prefer interfaces over types for objects
+- Use `unknown` instead of `any` when possible
+- Add JSDoc comments for public functions
+
+### Next.js
+- Use App Router conventions (`page.tsx`, `route.ts`)
+- Prefer Server Components by default
+- Use `'use client'` only when necessary
+- API routes should export named functions (GET, POST, etc.)
+
+### API Responses
+Always use this response format:
+```typescript
+{
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+  meta?: {
+    timestamp: string;
+    version: string;
+  };
+}
+```
+
+### Security
+- Never hardcode secrets - use environment variables
+- Always validate JWT tokens with signature verification
+- Sanitize user input before database queries
+- Use parameterized queries with Supabase client
+
+## File Structure
+```
+src/
+├── app/
+│   ├── api/           # API routes
+│   │   ├── agent/     # Agent-facing APIs
+│   │   ├── auth/      # Authentication
+│   │   └── dashboard/ # Dashboard APIs
+│   └── dashboard/     # Dashboard pages
+├── components/        # React components
+├── lib/
+│   ├── auth/          # Auth utilities
+│   ├── parser/        # Parsing utilities
+│   └── supabase/      # Database client
+└── types/             # TypeScript types
+```
+
+## Key Patterns
+
+### JWT Authentication
+```typescript
+import { verifySessionToken, signJWT } from '@/lib/auth/jwt-config';
+
+// Verify token
+const result = await verifySessionToken(token);
+if (!result.valid) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Sign new token
+const token = await signJWT({ sub: userId, email }, { expiresIn: '24h' });
+```
+
+### Supabase Queries
+```typescript
+import { getSupabaseClient, getSupabaseAdmin } from '@/lib/supabase/client';
+
+// Client-side (with RLS)
+const supabase = getSupabaseClient();
+
+// Server-side (bypasses RLS)
+const supabaseAdmin = getSupabaseAdmin();
+```
+
+### MCP Tool Registration
+```typescript
+const tools = [
+  {
+    name: 'search_products',
+    description: 'Search for products by keyword',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+      },
+      required: ['query'],
+    },
+  },
+];
+```
+
+## Common Commands
+```bash
+# Development
+npm run dev
+
+# Build
+npm run build
+
+# Type check
+npm run type-check
+
+# Lint
+npm run lint
+
+# Test
+npm test
+```
+
+## Environment Variables
+Required for local development:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `JWT_SECRET` (min 32 chars)
+
+## When Generating Code
+1. Always include proper error handling
+2. Add TypeScript types for all parameters and returns
+3. Use async/await over .then() chains
+4. Follow existing patterns in the codebase
+5. Add comments for complex logic
+6. Consider edge cases and validation

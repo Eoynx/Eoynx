@@ -9,11 +9,31 @@ import type { AgentProvider, ApiResponse, AgentToken } from '@/types';
 
 export const runtime = 'edge';
 
-// 메모리 저장소 (DB 미연결 시 폴백)
-const registeredAgents = new Map<string, { secret: string; permissions: string[] }>([
-  ['demo-agent', { secret: 'demo-secret-123', permissions: ['read', 'write'] }],
-  ['test-agent', { secret: 'test-secret-456', permissions: ['read'] }],
-]);
+// 보안: 데모 에이전트 자격증명은 환경 변수에서 로드 (개발 환경 전용)
+function getDemoAgents(): Map<string, { secret: string; permissions: string[] }> {
+  const demoAgents = new Map<string, { secret: string; permissions: string[] }>();
+  
+  // 환경 변수에서 데모 에이전트 설정 로드 (형식: agentId:secret)
+  const demoAgentConfig = process.env.DEMO_AGENT_CREDENTIALS;
+  if (demoAgentConfig && process.env.NODE_ENV !== 'production') {
+    try {
+      // "demo-agent:secret123,test-agent:secret456" 형식
+      demoAgentConfig.split(',').forEach(pair => {
+        const [agentId, secret] = pair.split(':');
+        if (agentId && secret) {
+          demoAgents.set(agentId.trim(), { 
+            secret: secret.trim(), 
+            permissions: ['read'] 
+          });
+        }
+      });
+    } catch {
+      console.warn('[Security] Failed to parse DEMO_AGENT_CREDENTIALS');
+    }
+  }
+  
+  return demoAgents;
+}
 
 // 토큰 저장소 (메모리)
 const tokenStore = new Map<string, { agentId: string; expiresAt: number }>();
@@ -29,7 +49,12 @@ async function getAgentFromDB(agentId: string): Promise<{ secret: string; permis
       .single();
     
     if (error || !data) {
-      return registeredAgents.get(agentId) || null;
+      // 프로덕션에서는 DB에서만 조회
+      if (process.env.NODE_ENV === 'production') {
+        return null;
+      }
+      // 개발 환경에서만 데모 에이전트 허용
+      return getDemoAgents().get(agentId) || null;
     }
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,7 +64,10 @@ async function getAgentFromDB(agentId: string): Promise<{ secret: string; permis
       permissions: d.permissions || ['read'],
     };
   } catch {
-    return registeredAgents.get(agentId) || null;
+    if (process.env.NODE_ENV === 'production') {
+      return null;
+    }
+    return getDemoAgents().get(agentId) || null;
   }
 }
 

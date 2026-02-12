@@ -1,0 +1,63 @@
+{
+  "name": "@eoynx/sdk",
+  "version": "0.1.0",
+  "description": "Official SDK for Eoynx Agent Gateway - Web parsing and AI agent integration",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.mjs",
+      "require": "./dist/react/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "eoynx",
+    "ai-agent",
+    "web-parsing",
+    "mcp",
+    "sdk"
+  ],
+  "author": "Eoynx Team <contact@eoynx.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Eoynx/Eoynx",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://eoynx.com",
+  "bugs": {
+    "url": "https://github.com/Eoynx/Eoynx/issues"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}

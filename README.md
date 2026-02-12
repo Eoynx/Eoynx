@@ -2,6 +2,9 @@
 
 > **"어둠을 가르고 시작되는 새벽"** — AI와 웹의 새로운 전환점을 열다
 
+[![CI](https://github.com/Eoynx/Eoynx/actions/workflows/ci.yml/badge.svg)](https://github.com/Eoynx/Eoynx/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@eoynx/sdk?label=SDK)](https://www.npmjs.com/package/@eoynx/sdk)
+[![MCP](https://img.shields.io/badge/MCP-Smithery-purple)](https://smithery.ai)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8)](https://tailwindcss.com/)
@@ -63,8 +66,8 @@ Claude, GPT 등 AI 에이전트가 표준화된 프로토콜로 도구를 호출
 
 ```bash
 # 저장소 클론
-git clone https://github.com/eoynx/eoynx.git
-cd eoynx
+git clone https://github.com/Eoynx/Eoynx.git
+cd Eoynx
 
 # 의존성 설치
 npm install
@@ -240,7 +243,58 @@ npm run test:coverage
 - [ ] Agent Reputation 고도화
 - [ ] 플러그인 시스템
 
-## 📚 문서
+## � SDK
+
+공식 SDK로 빠르게 통합하세요:
+
+```bash
+npm install @eoynx/sdk
+```
+
+```typescript
+import EoynxClient from '@eoynx/sdk';
+
+const client = new EoynxClient({ apiKey: 'your-key' });
+const data = await client.parse('https://example.com/products');
+```
+
+**React Hooks도 지원:**
+
+```tsx
+import { useEoynxParser } from '@eoynx/sdk/react';
+
+function Products() {
+  const { data, loading, parse } = useEoynxParser();
+  // ...
+}
+```
+
+👉 [SDK 문서](packages/sdk/README.md)
+
+## 🤖 MCP (AI 에이전트 통합)
+
+Claude, GPT 등 AI 에이전트와 직접 연동:
+
+**Claude Desktop 설정:**
+```json
+{
+  "mcpServers": {
+    "eoynx": {
+      "url": "https://eoynx.com/api/agent/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+**지원 도구:**
+- `parse_url` - 웹페이지 파싱
+- `search_services` - 서비스 검색
+- `execute_action` - 액션 실행
+
+👉 [MCP 가이드](docs/MCP_GUIDE.md) | [Smithery.ai](https://smithery.ai)
+
+## �📚 문서
 
 - [API 가이드](docs/API_GUIDE.md) - 상세 API 레퍼런스
 - [MCP 가이드](docs/MCP_GUIDE.md) - Model Context Protocol 통합
@@ -262,6 +316,6 @@ npm run test:coverage
 
 AI와 웹의 새로운 시대를 함께 열어갑니다.
 
-[Website](https://eoynx.com) · [Documentation](docs/) · [Issues](https://github.com/eoynx/eoynx/issues)
+[Website](https://eoynx.com) · [Documentation](docs/) · [Issues](https://github.com/Eoynx/Eoynx/issues)
 
 </div>
